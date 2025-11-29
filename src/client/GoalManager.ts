@@ -113,15 +113,21 @@ export class GoalManager {
     }
 
     private updateUI(): void {
-        if (!this.goalTextElement) return;
+        if (!this.goalTextElement || !this.goalElement) return;
 
         const goal = this.getCurrentGoal();
         if (goal) {
             this.goalTextElement.textContent = `${goal.description} (${goal.current}/${goal.target})`;
             this.goalTextElement.style.color = '#FFD700';
+
+            // Trigger pulse animation
+            this.goalElement.classList.remove('pulse');
+            void this.goalElement.offsetWidth; // Force reflow
+            this.goalElement.classList.add('pulse');
         } else {
             this.goalTextElement.textContent = "All Goals Completed!";
             this.goalTextElement.style.color = '#51CF66';
+            this.goalTextElement.style.textShadow = '0 0 10px #51CF66';
         }
     }
 }

@@ -21,6 +21,7 @@ import { MenuManager, MenuState } from './MenuManager';
 import { VictoryManager } from './VictoryManager';
 import { ProgressionManager } from './ProgressionManager';
 import { GoalManager } from './GoalManager';
+import { EventManager } from './EventManager';
 import { Camera } from './Camera';
 
 export class Game {
@@ -49,6 +50,7 @@ export class Game {
     public isPaused: boolean = false;
     public editorManager: EditorManager;
     public goalManager: GoalManager;
+    public eventManager: EventManager;
     public camera: Camera;
 
     // Input state
@@ -79,6 +81,7 @@ export class Game {
         this.victoryManager = new VictoryManager();
         this.progressionManager = new ProgressionManager();
         this.goalManager = new GoalManager();
+        this.eventManager = new EventManager();
         this.camera = new Camera(0, 0);
 
         this.editorManager = new EditorManager(this);
@@ -634,7 +637,8 @@ export class Game {
                     this.particleManager,
                     this.camera,
                     this.selectedSpawnStation,
-                    this.timeManager.getGameTimeDays()
+                    this.timeManager.getGameTimeDays(),
+                    this.eventManager
                 );
 
                 // Render Ghost Tracks if dragging
@@ -669,15 +673,23 @@ export class Game {
             // Update Particles
             this.particleManager.update(deltaTime);
 
+            // Update Events
+            const eventMsg = this.eventManager.update(this.timeManager.getGameTimeDays());
+            if (eventMsg) {
+                this.notificationManager.addNotification(eventMsg, 10, 5, '#FFA500');
+                this.audioManager.playSound('achievement'); // Sound alert
+                this.eventManager.updateUI(); // Update event banner
+            }
+
             // Update UI every tick? Or throttle? For MVP every tick is fine.
             this.updateUI();
 
             // Update
             for (let i = this.trains.length - 1; i >= 0; i--) {
                 const train = this.trains[i];
-                // Apply speed bonus from progression
+                // Apply speed bonus from progression and events
                 const bonuses = this.progressionManager.getBonuses();
-                const speedBonus = bonuses ? bonuses.speed : 1.0;
+                const speedBonus = (bonuses ? bonuses.speed : 1.0) * this.eventManager.getSpeedModifier();
                 train.tick(this.map, deltaTime * speedBonus);
 
                 // Emit smoke/steam from moving trains
@@ -722,8 +734,9 @@ export class Game {
                         revenue *= 0.2; // Penalty for wrong station
                         this.notificationManager.addNotification('Wrong Station!', train.x, train.y - 1, '#FF0000');
                     } else {
-                        // Apply revenue bonus
+                        // Apply revenue bonus from progression and events
                         revenue *= this.progressionManager.getBonuses().revenue;
+                        revenue *= this.eventManager.getRevenueModifier();
 
                         // Add XP
                         const xpGained = Math.floor(revenue / 10);

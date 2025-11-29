@@ -210,6 +210,12 @@ export class AudioManager {
 
     public toggleSound(): void {
         this.enabled = !this.enabled;
+        this.musicEnabled = this.enabled;
+        if (this.musicEnabled) {
+            this.startAmbientMusic();
+        } else {
+            this.stopAmbientMusic();
+        }
     }
 
     public toggleMusic(): void {

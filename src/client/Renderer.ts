@@ -4,6 +4,7 @@ import { CargoTypeManager } from '../core/CargoType';
 import { NotificationManager } from './NotificationManager';
 import { ParticleManager } from './ParticleManager';
 import { Camera } from './Camera';
+import { EventManager, EventType } from './EventManager';
 
 export class Renderer {
     private canvas: HTMLCanvasElement;
@@ -35,7 +36,8 @@ export class Renderer {
         particles: ParticleManager,
         camera: Camera,
         selectedSpawn: { x: number, y: number } | null | undefined,
-        gameTime: number // Fractional day (0.0 - 1.0)
+        gameTime: number, // Fractional day (0.0 - 1.0)
+        eventManager?: EventManager
     ) {
         // Clear with full resolution dimensions
         this.ctx.save();
@@ -87,6 +89,11 @@ export class Renderer {
 
             // Draw Day/Night Overlay (Screen Space)
             this.drawDayNightOverlay(timeOfDay);
+
+            // Draw Weather
+            if (eventManager) {
+                this.drawWeather(eventManager);
+            }
         } catch (e) {
             console.error("Render Error:", e);
         }
@@ -175,13 +182,47 @@ export class Renderer {
             opacity = 0.5;
         }
 
-        if (opacity > 0) {
-            this.ctx.save();
-            this.ctx.fillStyle = color;
-            this.ctx.globalAlpha = opacity;
+    }
+
+    private drawWeather(eventManager: EventManager): void {
+        const event = eventManager.getActiveEvent();
+        if (!event) return;
+
+        this.ctx.save();
+
+        if (event.type === EventType.RAIN) {
+            this.ctx.strokeStyle = 'rgba(174, 194, 224, 0.5)';
+            this.ctx.lineWidth = 1;
+            this.ctx.beginPath();
+            for (let i = 0; i < 100; i++) {
+                const x = Math.random() * window.innerWidth;
+                const y = Math.random() * window.innerHeight;
+                this.ctx.moveTo(x, y);
+                this.ctx.lineTo(x - 5, y + 10);
+            }
+            this.ctx.stroke();
+
+            // Overlay
+            this.ctx.fillStyle = 'rgba(0, 0, 50, 0.1)';
             this.ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
-            this.ctx.restore();
+
+        } else if (event.type === EventType.SNOW) {
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            for (let i = 0; i < 50; i++) {
+                const x = Math.random() * window.innerWidth;
+                const y = Math.random() * window.innerHeight;
+                const size = Math.random() * 3 + 1;
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, size, 0, Math.PI * 2);
+                this.ctx.fill();
+            }
+
+            // Overlay
+            this.ctx.fillStyle = 'rgba(200, 200, 255, 0.1)';
+            this.ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
         }
+
+        this.ctx.restore();
     }
 
     private drawGrid(map: MapManager, selectedSpawn: { x: number, y: number } | null | undefined, time: number, isNight: boolean) {

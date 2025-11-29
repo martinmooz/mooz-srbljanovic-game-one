@@ -53,6 +53,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    min-width: 250px;
 }
 
 .stat-row {
@@ -69,6 +70,25 @@ body {
 
 .stat-label {
     color: #aaa;
+}
+
+/* Goal Pulse Animation */
+@keyframes goal-pulse {
+    0% {
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(255, 215, 0, 0.4);
+    }
+
+    50% {
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), 0 0 20px 10px rgba(255, 215, 0, 0.2);
+    }
+
+    100% {
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), 0 0 0 0 rgba(255, 215, 0, 0);
+    }
+}
+
+#goal-container.pulse {
+    animation: goal-pulse 1.5s ease-out;
 }
 
 /* Top Center: Notifications/Messages (Future) */
