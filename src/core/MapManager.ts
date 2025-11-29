@@ -1,5 +1,7 @@
 import { ITileData } from './ITileData';
 import { TrackUtilities } from './TrackUtilities';
+import { EconomyManager } from './EconomyManager';
+import { MaintenanceManager } from './MaintenanceManager';
 
 export class MapManager {
     private width: number;
@@ -36,15 +38,54 @@ export class MapManager {
         return this.grid[y][x];
     }
 
-    public placeTrack(x: number, y: number): void {
+    public placeTrack(x: number, y: number, economy?: EconomyManager, maintenance?: MaintenanceManager, currentDay?: number): boolean {
         const tile = this.getTile(x, y);
-        if (!tile) return;
+        if (!tile) return false;
+
+        // If already rail or station, do nothing (or maybe upgrade?)
+        if (tile.trackType === 'rail' || tile.trackType === 'station') return false;
+
+        // Check cost
+        const COST = 50;
+        if (economy && !economy.deduct(COST)) {
+            return false;
+        }
 
         tile.trackType = 'rail';
         // When placing a track, we need to update its bitmask AND the bitmasks of all neighbors.
         this.updateBitmask(x, y);
 
+        // Register with maintenance if provided
+        if (maintenance && currentDay !== undefined) {
+            maintenance.registerTrack(x, y, currentDay);
+        }
+
         // Update neighbors
+        this.updateNeighbors(x, y);
+        return true;
+    }
+
+    public placeStation(x: number, y: number, economy?: EconomyManager): boolean {
+        const tile = this.getTile(x, y);
+        if (!tile) return false;
+
+        if (tile.trackType === 'station') return false;
+
+        // Cost for station? Let's say 200.
+        const COST = 200;
+        if (economy && !economy.deduct(COST)) {
+            return false;
+        }
+
+        tile.trackType = 'station';
+        // Stations act like tracks for connectivity usually, or they are endpoints.
+        // For bitmasking, let's treat them as rails so tracks connect TO them.
+        this.updateBitmask(x, y);
+        this.updateNeighbors(x, y);
+        return true;
+    }
+
+    private updateNeighbors(x: number, y: number) {
         for (let dy = -1; dy <= 1; dy++) {
             for (let dx = -1; dx <= 1; dx++) {
                 if (dx === 0 && dy === 0) continue;
@@ -55,7 +96,7 @@ export class MapManager {
 
     private updateBitmask(x: number, y: number): void {
         const tile = this.getTile(x, y);
-        if (!tile || tile.trackType !== 'rail') return;
+        if (!tile || (tile.trackType !== 'rail' && tile.trackType !== 'station')) return;
 
         const neighbors: boolean[] = [];
         // Order: N, E, S, W, NE, SE, SW, NW
@@ -82,6 +123,7 @@ export class MapManager {
 
     private hasTrack(x: number, y: number): boolean {
         const tile = this.getTile(x, y);
-        return tile !== null && tile.trackType === 'rail';
+        // Treat station as track for connectivity
+        return tile !== null && (tile.trackType === 'rail' || tile.trackType === 'station');
     }
 }

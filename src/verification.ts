@@ -1,5 +1,6 @@
 import { TrackUtilities } from './core/TrackUtilities';
 import { RevenueSimulator } from './simulation/RevenueSimulator';
+import { TrainType } from './core/TrainActor';
 
 function verifyBitmask() {
     console.log("--- Verifying TrackUtilities.calculateBitmask ---");
@@ -84,7 +85,7 @@ function verifyMapAndMovement() {
 
     // Verify Movement
     // Place train at (0,0)
-    const train = new TrainActor(0, 0, 0.1); // Speed 0.1 per tick
+    const train = new TrainActor(0, 0, TrainType.NORMAL, 0); // Normal train, StartTime 0
 
     // Tick 1: Should pick direction E (1) and move
     train.tick(map, 1.0);
@@ -100,6 +101,79 @@ function verifyMapAndMovement() {
     console.log(`Train Position after ~6 ticks: Expected (1,0), Got (${train.x},${train.y}) -> ${train.x === 1 && train.y === 0 ? 'PASS' : 'FAIL'}`);
 }
 
+import { EconomyManager } from './core/EconomyManager';
+
+function verifyEconomy() {
+    console.log("\n--- Verifying Economy & Stations ---");
+    const economy = new EconomyManager(1000);
+    const map = new MapManager(10, 10);
+
+    // 1. Buy Track ($50)
+    const success1 = map.placeTrack(0, 0, economy);
+    console.log(`Buy Track: Expected Success, Balance 950. Got ${success1}, ${economy.getBalance()} -> ${success1 && economy.getBalance() === 950 ? 'PASS' : 'FAIL'}`);
+
+    // 2. Buy Station ($200)
+    const success2 = map.placeStation(5, 5, economy);
+    console.log(`Buy Station: Expected Success, Balance 750. Got ${success2}, ${economy.getBalance()} -> ${success2 && economy.getBalance() === 750 ? 'PASS' : 'FAIL'}`);
+
+    // 3. Insufficient Funds
+    // Drain money
+    economy.deduct(740); // Balance 10
+    const success3 = map.placeTrack(1, 0, economy); // Cost 50
+    console.log(`Buy Track (Poor): Expected Fail, Balance 10. Got ${success3}, ${economy.getBalance()} -> ${!success3 && economy.getBalance() === 10 ? 'PASS' : 'FAIL'}`);
+
+    // 4. Revenue
+    economy.add(100); // Balance 110
+    console.log(`Add Revenue: Expected 110. Got ${economy.getBalance()} -> ${economy.getBalance() === 110 ? 'PASS' : 'FAIL'}`);
+}
+
+function verifyNavigationBug() {
+    console.log("\n--- Verifying Navigation Bug (Vertical) ---");
+    const map = new MapManager(10, 10);
+    // Track: (0,0) -> (0,1) -> (0,2) [Station]
+    map.placeTrack(0, 0);
+    map.placeTrack(0, 1);
+    map.placeStation(0, 2);
+
+    const train = new TrainActor(0, 0, TrainType.NORMAL, 0); // Normal train, StartTime 0
+    // Tick 1: Train should move East to (1,0)
+    // Train at (0,0). Mask South(4). Valid: South.
+    train.tick(map, 1.0); // Move to 0,1
+    console.log(`Tick 1: Pos (${train.x},${train.y}). Expected (0,1).`);
+
+    // Tick 2: Train at (0,1). Neighbors: North(0,0), South(0,2)[Station].
+    // Mask: North(1) | South(4) = 5.
+    // Valid Directions: North(0), South(2).
+    // BUG: validDirections[0] is 0 (North). It will pick North and bounce back!
+    train.tick(map, 1.0); // Move to ?
+    console.log(`Tick 2: Pos (${train.x},${train.y}). Expected (0,2) [Station].`);
+
+    if (train.x === 0 && train.y === 2) {
+        console.log("Result: PASS (Reached Station)");
+    } else {
+        console.log("Result: FAIL (Did not reach Station - Likely Bounced)");
+    }
+}
+
+import { TimeManager } from './core/TimeManager';
+
+function verifyTimeSystem() {
+    console.log("\n--- Verifying Time System ---");
+    const time = new TimeManager();
+
+    // 1. Tick
+    time.tick(12); // 12 seconds = 0.5 days
+    console.log(`Tick 12s: Expected 0.5 days. Got ${time.getGameTimeDays()} -> ${time.getGameTimeDays() === 0.5 ? 'PASS' : 'FAIL'}`);
+
+    // 2. Speed
+    time.setSpeed(2.0);
+    time.tick(12); // 12 real seconds * 2 = 24 game seconds = 1 day. Total 1.5 days.
+    console.log(`Tick 12s (2x): Expected 1.5 days. Got ${time.getGameTimeDays()} -> ${time.getGameTimeDays() === 1.5 ? 'PASS' : 'FAIL'}`);
+}
+
 verifyBitmask();
 verifyRevenue();
 verifyMapAndMovement();
+verifyEconomy();
+verifyNavigationBug();
+verifyTimeSystem();

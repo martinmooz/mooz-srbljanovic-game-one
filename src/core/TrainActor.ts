@@ -1,24 +1,114 @@
 import { MapManager } from './MapManager';
+import { CargoType, CargoTypeManager } from './CargoType';
+
+export enum TrainType {
+    NORMAL = 'normal',
+    FAST = 'fast',
+    HEAVY = 'heavy'
+}
+
+export interface TrainTypeInfo {
+    type: TrainType;
+    speed: number;
+    cost: number;
+    name: string;
+    color: string;
+}
+
+export class TrainTypeManager {
+    private static trainData: Record<TrainType, TrainTypeInfo> = {
+        [TrainType.NORMAL]: {
+            type: TrainType.NORMAL,
+            speed: 2.0,
+            cost: 100,
+            name: 'Normal',
+            color: '#FF0000'
+        },
+        [TrainType.FAST]: {
+            type: TrainType.FAST,
+            speed: 4.0,
+            cost: 200,
+            name: 'Fast',
+            color: '#00FF00'
+        },
+        [TrainType.HEAVY]: {
+            type: TrainType.HEAVY,
+            speed: 1.5,
+            cost: 150,
+            name: 'Heavy',
+            color: '#0000FF'
+        }
+    };
+
+    public static getTrainInfo(type: TrainType): TrainTypeInfo {
+        return this.trainData[type];
+    }
+
+    public static getAllTrains(): TrainTypeInfo[] {
+        return Object.values(this.trainData);
+    }
+}
 
 export class TrainActor {
     public x: number;
     public y: number;
     public progress: number; // 0.0 to 1.0 within the tile
-    public speed: number; // Tiles per tick (simplified)
-    public cargo: any; // Placeholder for cargo data
+    public speed: number;
+    public cargo: Record<string, number>;
+    public currentDirection: number | null = null; // 0:N, 1:E, 2:S, 3:W - NOW PUBLIC
+    private lastX: number;
+    private lastY: number;
 
-    // Direction we are currently moving towards (or came from)
-    // For simplicity in this MVP, let's store current direction as an index 0-3 (N, E, S, W)
-    // or maybe just target tile coordinates.
-    // Let's stick to a simple "move to center, then pick next valid neighbor" logic.
-    private currentDirection: number | null = null; // 0:N, 1:E, 2:S, 3:W
+    public startTime: number;
+    public cargoType: CargoType;
+    public trainType: TrainType;
+    public cargoValue: number;
 
-    constructor(startX: number, startY: number, speed: number) {
+    constructor(startX: number, startY: number, trainType: TrainType, startTime: number, cargoType?: CargoType) {
         this.x = startX;
         this.y = startY;
+        this.lastX = startX;
+        this.lastY = startY;
         this.progress = 0.5; // Start at center of tile
-        this.speed = speed;
+
+        this.trainType = trainType;
+        const trainInfo = TrainTypeManager.getTrainInfo(trainType);
+        this.speed = trainInfo.speed;
+
+        this.startTime = startTime;
+        this.cargoType = cargoType || CargoTypeManager.getRandomCargo();
+        this.cargoValue = CargoTypeManager.getCargoInfo(this.cargoType).baseValue;
         this.cargo = {};
+    }
+
+    /**
+     * Get interpolated visual position for smooth rendering
+     * Returns pixel offset from current tile based on progress and direction
+     */
+    public getVisualPosition(): { x: number, y: number, direction: number | null } {
+        let offsetX = 0;
+        let offsetY = 0;
+
+        if (this.currentDirection !== null && this.progress < 1.0) {
+            // Interpolate between current tile and next tile
+            const t = this.progress; // 0.0 to 1.0
+
+            if (this.currentDirection === 0) { // North
+                offsetY = -t;
+            } else if (this.currentDirection === 1) { // East
+                offsetX = t;
+            } else if (this.currentDirection === 2) { // South
+                offsetY = t;
+            } else if (this.currentDirection === 3) { // West
+                offsetX = -t;
+            }
+        }
+
+        return {
+            x: this.x + offsetX,
+            y: this.y + offsetY,
+            direction: this.currentDirection
+        };
     }
 
     public tick(map: MapManager, deltaTime: number): void {
@@ -68,13 +158,42 @@ export class TrainActor {
         if (mask & 8) validDirections.push(3); // W
 
         if (validDirections.length > 0) {
-            // Prefer continuing straight if possible? 
-            // Or just pick random/first for now.
+            // Filter out the direction that leads back to lastX, lastY
+            // unless it's the only option (dead end).
+
+            if (validDirections.length > 1) {
+                // Find which direction leads to lastX, lastY
+                // 0: N -> leads to y-1. So if lastY == y-1, that's where we came from.
+                // Actually, simpler:
+                // If we move N(0), newY = y-1. If newY == lastY && newX == lastX, avoid.
+
+                const filtered = validDirections.filter(dir => {
+                    let nextX = this.x;
+                    let nextY = this.y;
+                    if (dir === 0) nextY -= 1;
+                    else if (dir === 1) nextX += 1;
+                    else if (dir === 2) nextY += 1;
+                    else if (dir === 3) nextX -= 1;
+
+                    return !(nextX === this.lastX && nextY === this.lastY);
+                });
+
+                if (filtered.length > 0) {
+                    this.currentDirection = filtered[0];
+                    return;
+                }
+            }
+
+            // If only one option (or all filtered out which shouldn't happen if length>1 logic is right), pick first.
             this.currentDirection = validDirections[0];
         }
     }
 
     private moveTile(map: MapManager): void {
+        // Update last position before moving
+        this.lastX = this.x;
+        this.lastY = this.y;
+
         // Update integer coordinates based on direction
         if (this.currentDirection === 0) this.y -= 1; // N
         else if (this.currentDirection === 1) this.x += 1; // E

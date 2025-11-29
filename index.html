@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RailSim MVP</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #222;
+            color: white;
+            font-family: sans-serif;
+        }
+
+        #game-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        canvas {
+            background-color: #333;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        #ui-layer>div:not(:has(button)) {
+            pointer-events: none;
+        }
+
+        button {
+            pointer-events: auto;
+            cursor: pointer;
+            padding: 5px 10px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+
+        button:active {
+            background: #3d8b40;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #0a0a0a;
+        }
+
+        canvas {
+            display: block;
+        }
+
+        button {
+            cursor: pointer;
+            font-family: inherit;
+        }
+
+        .menu-button {
+            padding: 14px 28px;
+            font-size: 18px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #4A90E2 0%, #357ABD 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(74, 144, 226, 0.3);
+        }
+
+        .menu-button:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 6px 20px rgba(74, 144, 226, 0.5);
+            background: linear-gradient(135deg, #5BA3F5 0%, #4A90E2 100%);
+        }
+
+        .menu-button:active {
+            transform: translateY(0) scale(0.98);
+        }
+
+        #ui-layer button {
+            padding: 8px 16px;
+            background: rgba(74, 144, 226, 0.9);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            pointer-events: auto;
+        }
+
+        #ui-layer button:hover {
+            background: rgba(74, 144, 226, 1);
+            transform: scale(1.05);
+        }
+
+        #ui-layer button:active {
+            transform: scale(0.95);
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .notification {
+            animation: slideIn 0.3s ease;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="ui-layer">
+            <div>Revenue: $<span id="revenue-display">0</span></div>
+            <div>Trains: <span id="train-count">0</span></div>
+            <div>Time: <span id="time-display">Day 0, 0h</span></div>
+
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #555;">
+                <div style="cursor: pointer; user-select: none;" id="stats-toggle">
+                    📊 Statistics ▼
+                </div>
+                <div id="stats-panel" style="margin-top: 5px; font-size: 0.85em;">
+                    <div>Total Revenue: $<span id="total-revenue">0</span></div>
+                    <div>Deliveries: <span id="total-deliveries">0</span></div>
+                    <div>Highest: $<span id="highest-revenue">0</span></div>
+                    <div>Achievements: <span id="achievement-count">0</span>/4</div>
+                </div>
+            </div>
+
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #555;">
+                <div style="font-size: 0.9em; margin-bottom: 5px;">Train Type: <span id="selected-train-type">Normal
+                        ($100)</span></div>
+                <div style="display: flex; gap: 5px; margin-bottom: 5px;">
+                    <button id="btn-train-normal" style="background: #FF6B6B;">Normal</button>
+                    <button id="btn-train-fast" style="background: #51CF66;">Fast</button>
+                    <button id="btn-train-heavy" style="background: #339AF0;">Heavy</button>
+                </div>
+                <div style="font-size: 0.8em; color: #888;">Spawn: <span id="spawn-station">(0,0)</span></div>
+                <button id="btn-buy-train">Buy Train</button>
+            </div>
+
+            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #555;">
+                <button id="btn-pause">⏸</button>
+                <button id="btn-play">▶</button>
+                <button id="btn-fast">⏩</button>
+                <button id="btn-sound-toggle" style="margin-left: 8px;">🔊</button>
+            </div>
+
+            <div style="margin-top: 10px; font-size: 0.8em; color: #aaa;">
+                Left Click: Place Track ($50)<br>
+                Right Click: Place Station ($200)<br>
+                Shift+Right: Select Spawn<br>
+                Hover: Show Info<br>
+                Space: Free Train (Debug)
+            </div>
+        </div>
+    </div>
+    <script type="module" src="/src/client/Game.ts"></script>
+</body>
+
+</html>
