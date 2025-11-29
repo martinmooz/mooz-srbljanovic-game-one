@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RailSim MVP</title>
-  <script type="module" crossorigin src="/assets/index-Bq2F1pyj.js"></script>
+  <script type="module" crossorigin src="/assets/index-CQqc0DMc.js"></script>
   <link rel="stylesheet" crossorigin href="/assets/index-DSfaXxIp.css">
 </head>
 
@@ -75,6 +75,40 @@
         <div id="auto-save-indicator"
             style="position: absolute; top: 10px; left: 10px; padding: 6px 12px; background: rgba(0, 0, 0, 0.6); border-radius: 8px; font-size: 12px; color: #51CF66; opacity: 0; transition: opacity 0.3s;">
             💾 Saving...
+        </div>
+
+        <!-- Help Overlay -->
+        <div id="help-overlay" class="glass-panel"
+            style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 30px; max-width: 500px; z-index: 10000;">
+            <h2 style="margin: 0 0 20px 0; text-align: center; color: #FFD700;">🎮 CONTROLS</h2>
+            <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; font-size: 14px;">
+                <div style="font-weight: bold; color: #51CF66;">Drag Mouse</div>
+                <div>Build track ($50/tile)</div>
+
+                <div style="font-weight: bold; color: #51CF66;">Q</div>
+                <div>Place station ($200)</div>
+
+                <div style="font-weight: bold; color: #51CF66;">E</div>
+                <div>Set spawn station</div>
+
+                <div style="font-weight: bold; color: #51CF66;">Spacebar</div>
+                <div>Buy train (at spawn)</div>
+
+                <div style="font-weight: bold; color: #51CF66;">WASD / Arrows</div>
+                <div>Move camera</div>
+
+                <div style="font-weight: bold; color: #51CF66;">Mouse Wheel</div>
+                <div>Zoom in/out</div>
+
+                <div style="font-weight: bold; color: #51CF66;">ESC</div>
+                <div>Pause menu</div>
+
+                <div style="font-weight: bold; color: #51CF66;">H</div>
+                <div>Toggle this help</div>
+            </div>
+            <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #888;">
+                Press H or ESC to close
+            </div>
         </div>
 
         <!-- Top Right: Event Banner -->

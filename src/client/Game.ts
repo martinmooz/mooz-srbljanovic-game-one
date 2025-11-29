@@ -59,6 +59,7 @@ export class Game {
     private dragStartTile: { x: number, y: number } | null = null;
     private dragEndTile: { x: number, y: number } | null = null;
     private currentMouseTile: { x: number, y: number } | null = null;
+    private lastBuildAction: { path: { x: number, y: number }[], cost: number } | null = null;
 
     constructor() {
         const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
@@ -408,8 +409,14 @@ export class Game {
                 const path = this.map.getTrackPath(this.dragStartTile, this.dragEndTile);
                 if (this.map.buildTrackPath(path, this.economy, this.maintenanceManager, this.timeManager.getGameTimeDays())) {
                     this.audioManager.playSound('build');
-                    // Emit dust for each tile in path? Maybe just start and end to save performance
                     this.particleManager.emit(ParticleType.DUST, this.dragEndTile.x + 0.5, this.dragEndTile.y + 0.5, 8);
+
+                    // Store last build for undo
+                    this.lastBuildAction = {
+                        path: path,
+                        cost: path.length * 50
+                    };
+
                     this.updateUI();
                 }
             }
@@ -479,7 +486,23 @@ export class Game {
                     this.notificationManager.addNotification('Invalid Spawn!', 10, 10, '#FF0000');
                     this.audioManager.playSound('error');
                 }
-            } else if (e.code === 'Escape') {
+            }
+            // H - Toggle Help Overlay
+            if (e.key === 'h' || e.key === 'H') {
+                const helpOverlay = document.getElementById('help-overlay');
+                if (helpOverlay) {
+                    const isVisible = helpOverlay.style.display === 'flex';
+                    helpOverlay.style.display = isVisible ? 'none' : 'flex';
+                }
+            }
+
+            // Ctrl+Z - Undo last build
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                e.preventDefault();
+                this.undoLastBuild();
+            }
+
+            if (e.code === 'Escape') {
                 // Toggle pause
                 if (this.menuManager.getState() === MenuState.PLAYING) {
                     this.menuManager.setState(MenuState.PAUSED);
@@ -685,6 +708,23 @@ export class Game {
             '#FFD700'
         );
         this.audioManager.playSound('achievement');
+    }
+
+    private undoLastBuild(): void {
+        if (!this.lastBuildAction) {
+            this.notificationManager.addNotification('Nothing to undo!', 10, 10, '#FF6B6B');
+            return;
+        }
+
+        // Refund cost
+        this.economy.add(this.lastBuildAction.cost);
+
+        this.notificationManager.addNotification(`Refunded $${this.lastBuildAction.cost}`, 10, 10, '#51CF66');
+        this.audioManager.playSound('achievement');
+
+        // Clear last action
+        this.lastBuildAction = null;
+        this.updateUI();
     }
 
     private loop() {
