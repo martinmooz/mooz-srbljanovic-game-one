@@ -17,6 +17,7 @@ export class MapManager {
     }
 
     private initializeMap(): void {
+        // 1. Fill with Grass
         for (let y = 0; y < this.height; y++) {
             const row: ITileData[] = [];
             for (let x = 0; x < this.width; x++) {
@@ -25,10 +26,123 @@ export class MapManager {
                     y,
                     trackType: 'none',
                     bitmaskValue: 0,
-                    segmentID: null
+                    segmentID: null,
+                    terrainType: 'GRASS'
                 });
             }
             this.grid.push(row);
+        }
+
+        // 2. Generate Terrain (Water & Forests)
+        this.generateTerrain();
+
+        // 3. Place Initial Industries
+        this.placeInitialIndustries();
+    }
+
+    private generateTerrain(): void {
+        // Simple cellular automata or random clusters
+        const numForests = 15;
+        const numLakes = 5;
+
+        // Forests
+        for (let i = 0; i < numForests; i++) {
+            let cx = Math.floor(Math.random() * this.width);
+            let cy = Math.floor(Math.random() * this.height);
+            this.growCluster(cx, cy, 'FOREST', 0.6, 5);
+        }
+
+        // Water
+        for (let i = 0; i < numLakes; i++) {
+            let cx = Math.floor(Math.random() * this.width);
+            let cy = Math.floor(Math.random() * this.height);
+            this.growCluster(cx, cy, 'WATER', 0.7, 8);
+        }
+    }
+
+    private growCluster(x: number, y: number, type: 'FOREST' | 'WATER', probability: number, steps: number): void {
+        const queue: { x: number, y: number }[] = [{ x, y }];
+        const visited = new Set<string>();
+
+        let count = 0;
+        while (queue.length > 0 && count < steps) {
+            const current = queue.shift()!;
+            const key = `${current.x},${current.y}`;
+            if (visited.has(key)) continue;
+            visited.add(key);
+
+            const tile = this.getTile(current.x, current.y);
+            if (tile) {
+                tile.terrainType = type;
+                count++;
+
+                // Add neighbors
+                const neighbors = [
+                    { x: current.x + 1, y: current.y },
+                    { x: current.x - 1, y: current.y },
+                    { x: current.x, y: current.y + 1 },
+                    { x: current.x, y: current.y - 1 }
+                ];
+
+                for (const n of neighbors) {
+                    if (Math.random() < probability) {
+                        queue.push(n);
+                    }
+                }
+            }
+        }
+    }
+
+    private placeInitialIndustries(): void {
+        // Place 1 City, 1 Coal Mine, 1 Steel Mill to start
+        this.forcePlaceStation('CITY');
+        this.forcePlaceStation('COAL_MINE');
+        this.forcePlaceStation('STEEL_MILL');
+    }
+
+    private forcePlaceStation(type: string): void {
+        let placed = false;
+        let attempts = 0;
+        while (!placed && attempts < 50) {
+            const x = Math.floor(Math.random() * (this.width - 2)) + 1;
+            const y = Math.floor(Math.random() * (this.height - 2)) + 1;
+            const tile = this.getTile(x, y);
+
+            if (tile && tile.trackType === 'none' && tile.terrainType === 'GRASS') {
+                // Manually place station without cost
+                tile.trackType = 'station';
+                tile.stationType = type;
+                this.configureStationType(tile, type);
+                this.updateBitmask(x, y);
+                this.updateNeighbors(x, y);
+                placed = true;
+            }
+            attempts++;
+        }
+    }
+
+    private configureStationType(tile: ITileData, type: string): void {
+        switch (type) {
+            case 'COAL_MINE':
+                tile.produces = [CargoType.COAL];
+                tile.accepts = [CargoType.PASSENGERS];
+                break;
+            case 'IRON_MINE':
+                tile.produces = [CargoType.IRON_ORE];
+                tile.accepts = [CargoType.PASSENGERS];
+                break;
+            case 'STEEL_MILL':
+                tile.produces = [CargoType.STEEL];
+                tile.accepts = [CargoType.COAL, CargoType.IRON_ORE];
+                break;
+            case 'TOOL_FACTORY':
+                tile.produces = [CargoType.TOOLS];
+                tile.accepts = [CargoType.STEEL];
+                break;
+            case 'CITY':
+                tile.produces = [CargoType.PASSENGERS];
+                tile.accepts = [CargoType.TOOLS, CargoType.GOODS, CargoType.PASSENGERS];
+                break;
         }
     }
 
@@ -84,29 +198,7 @@ export class MapManager {
         const types = ['COAL_MINE', 'IRON_MINE', 'STEEL_MILL', 'TOOL_FACTORY', 'CITY'];
         const type = types[Math.floor(Math.random() * types.length)];
         tile.stationType = type;
-
-        switch (type) {
-            case 'COAL_MINE':
-                tile.produces = [CargoType.COAL];
-                tile.accepts = [CargoType.PASSENGERS];
-                break;
-            case 'IRON_MINE':
-                tile.produces = [CargoType.IRON_ORE];
-                tile.accepts = [CargoType.PASSENGERS];
-                break;
-            case 'STEEL_MILL':
-                tile.produces = [CargoType.STEEL];
-                tile.accepts = [CargoType.COAL, CargoType.IRON_ORE];
-                break;
-            case 'TOOL_FACTORY':
-                tile.produces = [CargoType.TOOLS];
-                tile.accepts = [CargoType.STEEL];
-                break;
-            case 'CITY':
-                tile.produces = [CargoType.PASSENGERS];
-                tile.accepts = [CargoType.TOOLS, CargoType.GOODS, CargoType.PASSENGERS];
-                break;
-        }
+        this.configureStationType(tile, type);
 
         this.updateBitmask(x, y);
         this.updateNeighbors(x, y);

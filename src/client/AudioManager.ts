@@ -1,66 +1,185 @@
 export class AudioManager {
-    private sounds: Map<string, HTMLAudioElement>;
-    private musicTrack: HTMLAudioElement | null = null;
+    private audioContext: AudioContext | null = null;
     private enabled: boolean = true;
     private musicEnabled: boolean = true;
     private volume: number = 0.5;
+    private musicOscillators: OscillatorNode[] = [];
+    private musicGain: GainNode | null = null;
+    private isPlayingMusic: boolean = false;
 
     constructor() {
-        this.sounds = new Map();
-        this.initializeSounds();
+        // Initialize on first user interaction to comply with browser policies
+        window.addEventListener('click', () => this.initAudioContext(), { once: true });
+        window.addEventListener('keydown', () => this.initAudioContext(), { once: true });
     }
 
-    private initializeSounds(): void {
-        // Using Web Audio API with simple oscillator-based sounds
-        // This avoids needing external audio files
+    private initAudioContext(): void {
+        if (this.audioContext) return;
 
-        // We'll create simple beep sounds programmatically
-        // For a production game, you'd load actual audio files
+        const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+        this.audioContext = new AudioContextClass();
+
+        if (this.musicEnabled) {
+            this.startAmbientMusic();
+        }
     }
 
     public playSound(soundName: string): void {
-        if (!this.enabled) return;
+        if (!this.enabled || !this.audioContext) return;
 
-        // Create simple beep sounds using Web Audio API
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
+        const ctx = this.audioContext;
+        const t = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
 
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
 
-        gainNode.gain.value = this.volume * 0.3;
+        gain.gain.setValueAtTime(this.volume * 0.3, t);
 
         switch (soundName) {
             case 'click':
-                oscillator.frequency.value = 800;
-                oscillator.type = 'square';
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, t);
+                osc.frequency.exponentialRampToValueAtTime(400, t + 0.1);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+                osc.start(t);
+                osc.stop(t + 0.1);
                 break;
+
             case 'build':
-                oscillator.frequency.value = 400;
-                oscillator.type = 'sine';
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                // Mechanical clunk
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(100, t);
+                osc.frequency.linearRampToValueAtTime(50, t + 0.1);
+                gain.gain.setValueAtTime(this.volume * 0.4, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+                osc.start(t);
+                osc.stop(t + 0.2);
+
+                // Add a hiss
+                this.playNoise(0.2);
                 break;
+
             case 'train':
-                oscillator.frequency.value = 200;
-                oscillator.type = 'sawtooth';
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                // Chug sound (filtered noise)
+                this.playNoise(0.1, 200);
                 break;
+
             case 'delivery':
-                oscillator.frequency.value = 1200;
-                oscillator.type = 'sine';
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+                // Coin sound
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(1200, t);
+                osc.frequency.setValueAtTime(1600, t + 0.1);
+                gain.gain.setValueAtTime(this.volume * 0.3, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.4);
+                osc.start(t);
+                osc.stop(t + 0.4);
                 break;
+
             case 'achievement':
-                oscillator.frequency.value = 1600;
-                oscillator.type = 'triangle';
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                // Victory fanfare
+                this.playNote(523.25, t, 0.1, 'triangle'); // C5
+                this.playNote(659.25, t + 0.1, 0.1, 'triangle'); // E5
+                this.playNote(783.99, t + 0.2, 0.1, 'triangle'); // G5
+                this.playNote(1046.50, t + 0.3, 0.4, 'triangle'); // C6
+                break;
+
+            case 'error':
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, t);
+                osc.frequency.linearRampToValueAtTime(100, t + 0.2);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+                osc.start(t);
+                osc.stop(t + 0.3);
                 break;
         }
+    }
 
-        oscillator.start();
-        oscillator.stop(audioContext.currentTime + 0.5);
+    private playNote(freq: number, time: number, duration: number, type: OscillatorType = 'sine'): void {
+        if (!this.audioContext) return;
+        const ctx = this.audioContext;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc.type = type;
+        osc.frequency.value = freq;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        gain.gain.setValueAtTime(this.volume * 0.2, time);
+        gain.gain.exponentialRampToValueAtTime(0.01, time + duration);
+
+        osc.start(time);
+        osc.stop(time + duration);
+    }
+
+    private playNoise(duration: number, filterFreq?: number): void {
+        if (!this.audioContext) return;
+        const ctx = this.audioContext;
+        const bufferSize = ctx.sampleRate * duration;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+
+        const noise = ctx.createBufferSource();
+        noise.buffer = buffer;
+
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(this.volume * 0.1, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+
+        if (filterFreq) {
+            const filter = ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = filterFreq;
+            noise.connect(filter);
+            filter.connect(gain);
+        } else {
+            noise.connect(gain);
+        }
+
+        gain.connect(ctx.destination);
+        noise.start();
+    }
+
+    public startAmbientMusic(): void {
+        if (!this.audioContext || this.isPlayingMusic) return;
+
+        this.isPlayingMusic = true;
+        this.musicGain = this.audioContext.createGain();
+        this.musicGain.gain.value = this.volume * 0.1;
+        this.musicGain.connect(this.audioContext.destination);
+
+        // Simple ambient drone
+        const freqs = [220, 277.18, 329.63]; // A3, C#4, E4 (A major chord)
+
+        freqs.forEach(f => {
+            const osc = this.audioContext!.createOscillator();
+            osc.type = 'sine';
+            osc.frequency.value = f;
+            osc.connect(this.musicGain!);
+            osc.start();
+            this.musicOscillators.push(osc);
+
+            // LFO for movement
+            const lfo = this.audioContext!.createOscillator();
+            lfo.frequency.value = 0.1 + Math.random() * 0.1;
+            const lfoGain = this.audioContext!.createGain();
+            lfoGain.gain.value = 5;
+            lfo.connect(lfoGain);
+            lfoGain.connect(osc.frequency);
+            lfo.start();
+        });
+    }
+
+    public stopAmbientMusic(): void {
+        this.musicOscillators.forEach(o => o.stop());
+        this.musicOscillators = [];
+        this.isPlayingMusic = false;
     }
 
     public toggleSound(): void {
@@ -69,19 +188,17 @@ export class AudioManager {
 
     public toggleMusic(): void {
         this.musicEnabled = !this.musicEnabled;
-        if (this.musicTrack) {
-            if (this.musicEnabled) {
-                this.musicTrack.play();
-            } else {
-                this.musicTrack.pause();
-            }
+        if (this.musicEnabled) {
+            this.startAmbientMusic();
+        } else {
+            this.stopAmbientMusic();
         }
     }
 
     public setVolume(volume: number): void {
         this.volume = Math.max(0, Math.min(1, volume));
-        if (this.musicTrack) {
-            this.musicTrack.volume = this.volume;
+        if (this.musicGain) {
+            this.musicGain.gain.value = this.volume * 0.1;
         }
     }
 

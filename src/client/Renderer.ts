@@ -89,6 +89,9 @@ export class Renderer {
                 const px = x * this.tileSize;
                 const py = y * this.tileSize;
 
+                // Draw Terrain
+                this.drawTerrain(px, py, tile.terrainType);
+
                 if (tile.trackType === 'rail') {
                     this.drawEnhancedTrack(px, py, tile.bitmaskValue);
                 } else if (tile.trackType === 'station') {
@@ -96,6 +99,61 @@ export class Renderer {
                 }
             }
         }
+    }
+
+    private drawTerrain(x: number, y: number, type?: string): void {
+        const ts = this.tileSize;
+
+        switch (type) {
+            case 'WATER':
+                this.ctx.fillStyle = '#4A90E2';
+                this.ctx.fillRect(x, y, ts, ts);
+                // Simple wave effect
+                this.ctx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                this.ctx.fillRect(x + 5, y + 10, 10, 2);
+                this.ctx.fillRect(x + 20, y + 25, 10, 2);
+                break;
+            case 'FOREST':
+                this.ctx.fillStyle = '#228B22'; // Forest Green
+                this.ctx.fillRect(x, y, ts, ts);
+                // Simple tree representation
+                this.ctx.fillStyle = '#006400'; // Dark Green
+                this.ctx.beginPath();
+                this.ctx.moveTo(x + ts / 2, y + 5);
+                this.ctx.lineTo(x + 5, y + ts - 5);
+                this.ctx.lineTo(x + ts - 5, y + ts - 5);
+                this.ctx.fill();
+                break;
+            case 'MOUNTAIN':
+                this.ctx.fillStyle = '#808080'; // Gray
+                this.ctx.fillRect(x, y, ts, ts);
+                // Peak
+                this.ctx.fillStyle = '#A9A9A9'; // Dark Gray
+                this.ctx.beginPath();
+                this.ctx.moveTo(x + ts / 2, y + 5);
+                this.ctx.lineTo(x + 5, y + ts);
+                this.ctx.lineTo(x + ts - 5, y + ts);
+                this.ctx.fill();
+                // Snow cap
+                this.ctx.fillStyle = '#FFF';
+                this.ctx.beginPath();
+                this.ctx.moveTo(x + ts / 2, y + 5);
+                this.ctx.lineTo(x + 12, y + 15);
+                this.ctx.lineTo(x + 28, y + 15);
+                this.ctx.fill();
+                break;
+            case 'GRASS':
+            default:
+                // Default grass is handled by background or explicit draw
+                // Let's draw a base grass tile
+                this.ctx.fillStyle = '#7CFC00'; // Lawn Green
+                this.ctx.fillRect(x, y, ts, ts);
+                break;
+        }
+
+        // Grid border
+        this.ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+        this.ctx.strokeRect(x, y, ts, ts);
     }
 
     private drawEnhancedTrack(x: number, y: number, bitmask: number): void {
