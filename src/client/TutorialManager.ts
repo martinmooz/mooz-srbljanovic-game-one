@@ -160,6 +160,10 @@ export class TutorialManager {
         return this.completed;
     }
 
+    public getCurrentStep(): number {
+        return this.currentStep;
+    }
+
     public reset(): void {
         localStorage.removeItem('railsim_tutorial_completed');
         this.completed = false;

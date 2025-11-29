@@ -1,7 +1,10 @@
 export enum CargoType {
-    COAL = 'coal',
-    IRON = 'iron',
-    GOLD = 'gold'
+    PASSENGERS = 'PASSENGERS',
+    COAL = 'COAL',
+    IRON_ORE = 'IRON_ORE',
+    STEEL = 'STEEL',
+    TOOLS = 'TOOLS',
+    GOODS = 'GOODS'
 }
 
 export interface CargoInfo {
@@ -13,23 +16,41 @@ export interface CargoInfo {
 
 export class CargoTypeManager {
     private static cargoData: Record<CargoType, CargoInfo> = {
+        [CargoType.PASSENGERS]: {
+            type: CargoType.PASSENGERS,
+            baseValue: 100,
+            color: '#FFFFFF',
+            name: 'Passengers'
+        },
         [CargoType.COAL]: {
             type: CargoType.COAL,
-            baseValue: 500,
+            baseValue: 200,
             color: '#2C2C2C',
             name: 'Coal'
         },
-        [CargoType.IRON]: {
-            type: CargoType.IRON,
-            baseValue: 750,
-            color: '#8B8B8B',
-            name: 'Iron'
+        [CargoType.IRON_ORE]: {
+            type: CargoType.IRON_ORE,
+            baseValue: 250,
+            color: '#8B4513',
+            name: 'Iron Ore'
         },
-        [CargoType.GOLD]: {
-            type: CargoType.GOLD,
-            baseValue: 2000,
-            color: '#FFD700',
-            name: 'Gold'
+        [CargoType.STEEL]: {
+            type: CargoType.STEEL,
+            baseValue: 500,
+            color: '#708090',
+            name: 'Steel'
+        },
+        [CargoType.TOOLS]: {
+            type: CargoType.TOOLS,
+            baseValue: 800,
+            color: '#DAA520',
+            name: 'Tools'
+        },
+        [CargoType.GOODS]: {
+            type: CargoType.GOODS,
+            baseValue: 600,
+            color: '#4682B4',
+            name: 'Goods'
         }
     };
 

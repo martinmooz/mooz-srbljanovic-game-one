@@ -92,128 +92,207 @@ export class Renderer {
                 if (tile.trackType === 'rail') {
                     this.drawEnhancedTrack(px, py, tile.bitmaskValue);
                 } else if (tile.trackType === 'station') {
-                    this.drawEnhancedStation(px, py);
+                    this.drawEnhancedStation(px, py, tile.stationType);
                 }
             }
         }
     }
 
-        // Center hub
-        this.ctx.fillRect(cx - w / 2, cy - w / 2, w, w);
+    private drawEnhancedTrack(x: number, y: number, bitmask: number): void {
+        const ts = this.tileSize;
 
-// N
-if (mask & 1) this.ctx.fillRect(cx - w / 2, y, w, this.tileSize / 2);
-// E
-if (mask & 2) this.ctx.fillRect(cx, cy - w / 2, this.tileSize / 2, w);
-// S
-if (mask & 4) this.ctx.fillRect(cx - w / 2, cy, w, this.tileSize / 2);
-// W
-if (mask & 8) this.ctx.fillRect(x, cy - w / 2, this.tileSize / 2, w);
+        // Draw wooden sleepers (ties)
+        this.ctx.fillStyle = '#5D4E37';
+        const sleeperWidth = ts * 0.8;
+        const sleeperHeight = 4;
+        const sleeperSpacing = 8;
 
-// Diagonals (simplified)
-// NE
-if (mask & 16) {
-    this.ctx.beginPath();
-    this.ctx.moveTo(cx, cy);
-    this.ctx.lineTo(x + this.tileSize, y);
-    this.ctx.stroke();
-}
-        // ... others omitted for MVP brevity, mostly cardinal needed.
+        for (let i = 0; i < ts; i += sleeperSpacing) {
+            this.ctx.fillRect(
+                x + (ts - sleeperWidth) / 2,
+                y + i,
+                sleeperWidth,
+                sleeperHeight
+            );
+        }
+
+        // Draw metal rails with gradient
+        const railGradient = this.ctx.createLinearGradient(x, y, x + ts, y + ts);
+        railGradient.addColorStop(0, '#888');
+        railGradient.addColorStop(0.5, '#AAA');
+        railGradient.addColorStop(1, '#666');
+        this.ctx.fillStyle = railGradient;
+
+        const railWidth = 3;
+        const railOffset = ts * 0.3;
+
+        // Draw rails based on bitmask
+        const N = bitmask & 1;
+        const E = bitmask & 2;
+        const S = bitmask & 4;
+        const W = bitmask & 8;
+
+        if (N || S) { // Vertical rails
+            this.ctx.fillRect(x + railOffset, y, railWidth, ts);
+            this.ctx.fillRect(x + ts - railOffset - railWidth, y, railWidth, ts);
+        }
+
+        if (E || W) { // Horizontal rails
+            this.ctx.fillRect(x, y + railOffset, ts, railWidth);
+            this.ctx.fillRect(x, y + ts - railOffset - railWidth, ts, railWidth);
+        }
+
+        // Add subtle shadow
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+        this.ctx.fillRect(x, y + ts - 2, ts, 2);
     }
 
-    private drawStation(x: number, y: number) {
-    this.ctx.fillStyle = '#4682B4'; // SteelBlue
-    this.ctx.fillRect(x + 5, y + 5, this.tileSize - 10, this.tileSize - 10);
+    private drawEnhancedStation(x: number, y: number, type?: string): void {
+        const ts = this.tileSize;
 
-    // Roof
-    this.ctx.fillStyle = '#2F4F4F';
-    this.ctx.beginPath();
-    this.ctx.moveTo(x, y + 10);
-    this.ctx.lineTo(x + this.tileSize / 2, y);
-    this.ctx.lineTo(x + this.tileSize, y + 10);
-    this.ctx.fill();
-}
+        let baseColor = '#6B8E23'; // Default Green
+        let buildingColor = '#8B4513'; // Default Brown
+
+        switch (type) {
+            case 'COAL_MINE':
+                baseColor = '#2F4F4F'; // Dark Slate Gray
+                buildingColor = '#000000'; // Black
+                break;
+            case 'IRON_MINE':
+                baseColor = '#8B4513'; // Saddle Brown
+                buildingColor = '#A0522D'; // Sienna
+                break;
+            case 'STEEL_MILL':
+                baseColor = '#708090'; // Slate Gray
+                buildingColor = '#C0C0C0'; // Silver
+                break;
+            case 'TOOL_FACTORY':
+                baseColor = '#DAA520'; // Goldenrod
+                buildingColor = '#B8860B'; // Dark Goldenrod
+                break;
+            case 'CITY':
+                baseColor = '#4682B4'; // Steel Blue
+                buildingColor = '#191970'; // Midnight Blue
+                break;
+        }
+
+        // Platform base
+        const platformGradient = this.ctx.createLinearGradient(x, y, x, y + ts);
+        platformGradient.addColorStop(0, baseColor);
+        platformGradient.addColorStop(1, '#333');
+        this.ctx.fillStyle = platformGradient;
+        this.ctx.fillRect(x, y, ts, ts);
+
+        // Platform edge
+        this.ctx.fillStyle = '#8B7355';
+        this.ctx.fillRect(x, y, ts, 4);
+        this.ctx.fillRect(x, y + ts - 4, ts, 4);
+
+        // Station building
+        this.ctx.fillStyle = buildingColor;
+        this.ctx.fillRect(x + 8, y + 8, ts - 16, ts - 16);
+
+        // Roof
+        this.ctx.fillStyle = '#654321';
+        this.ctx.beginPath();
+        this.ctx.moveTo(x + 4, y + 8);
+        this.ctx.lineTo(x + ts / 2, y + 2);
+        this.ctx.lineTo(x + ts - 4, y + 8);
+        this.ctx.closePath();
+        this.ctx.fill();
+
+        // Window
+        this.ctx.fillStyle = '#FFD700';
+        this.ctx.fillRect(x + ts / 2 - 3, y + ts / 2 - 3, 6, 6);
+
+        // Label (First letter)
+        if (type) {
+            this.ctx.fillStyle = '#FFF';
+            this.ctx.font = '10px Arial';
+            this.ctx.fillText(type[0], x + 2, y + ts - 2);
+        }
+    }
 
     private drawTrains(trains: TrainActor[]) {
-    for (const train of trains) {
-        // Get train type color
-        const trainInfo = TrainTypeManager.getTrainInfo(train.trainType);
-        const cargoInfo = CargoTypeManager.getCargoInfo(train.cargoType);
+        for (const train of trains) {
+            // Get train type color
+            const trainInfo = TrainTypeManager.getTrainInfo(train.trainType);
+            const cargoInfo = CargoTypeManager.getCargoInfo(train.cargoType);
 
-        // Use visual position for smooth movement
-        const visualPos = train.getVisualPosition();
-        const px = visualPos.x * this.tileSize + this.tileSize / 2;
-        const py = visualPos.y * this.tileSize + this.tileSize / 2;
+            // Use visual position for smooth movement
+            const visualPos = train.getVisualPosition();
+            const px = visualPos.x * this.tileSize + this.tileSize / 2;
+            const py = visualPos.y * this.tileSize + this.tileSize / 2;
 
-        this.ctx.save();
+            this.ctx.save();
 
-        // Rotate based on direction
-        if (visualPos.direction !== null) {
-            this.ctx.translate(px, py);
-            const rotation = visualPos.direction * (Math.PI / 2); // 0°, 90°, 180°, 270°
-            this.ctx.rotate(rotation);
-            this.ctx.translate(-px, -py);
+            // Rotate based on direction
+            if (visualPos.direction !== null) {
+                this.ctx.translate(px, py);
+                const rotation = visualPos.direction * (Math.PI / 2); // 0°, 90°, 180°, 270°
+                this.ctx.rotate(rotation);
+                this.ctx.translate(-px, -py);
+            }
+
+            // Draw train body (rectangle with cargo color)
+            this.ctx.fillStyle = trainInfo.color;
+            this.ctx.fillRect(px - 12, py - 8, 24, 16);
+
+            // Draw cargo indicator (small square)
+            this.ctx.fillStyle = cargoInfo.color;
+            this.ctx.fillRect(px - 6, py - 4, 12, 8);
+
+            // Draw outline
+            this.ctx.strokeStyle = '#000';
+            this.ctx.lineWidth = 2;
+            this.ctx.strokeRect(px - 12, py - 8, 24, 16);
+
+            // Draw direction indicator (small triangle at front)
+            if (visualPos.direction !== null) {
+                this.ctx.fillStyle = '#FFF';
+                this.ctx.beginPath();
+                this.ctx.moveTo(px + 12, py);
+                this.ctx.lineTo(px + 8, py - 4);
+                this.ctx.lineTo(px + 8, py + 4);
+                this.ctx.closePath();
+                this.ctx.fill();
+            }
+
+            this.ctx.restore();
         }
-
-        // Draw train body (rectangle with cargo color)
-        this.ctx.fillStyle = trainInfo.color;
-        this.ctx.fillRect(px - 12, py - 8, 24, 16);
-
-        // Draw cargo indicator (small square)
-        this.ctx.fillStyle = cargoInfo.color;
-        this.ctx.fillRect(px - 6, py - 4, 12, 8);
-
-        // Draw outline
-        this.ctx.strokeStyle = '#000';
-        this.ctx.lineWidth = 2;
-        this.ctx.strokeRect(px - 12, py - 8, 24, 16);
-
-        // Draw direction indicator (small triangle at front)
-        if (visualPos.direction !== null) {
-            this.ctx.fillStyle = '#FFF';
-            this.ctx.beginPath();
-            this.ctx.moveTo(px + 12, py);
-            this.ctx.lineTo(px + 8, py - 4);
-            this.ctx.lineTo(px + 8, py + 4);
-            this.ctx.closePath();
-            this.ctx.fill();
-        }
-
-        this.ctx.restore();
     }
-}
 
     private drawNotifications(notifications: NotificationManager) {
-    const notifs = notifications.getNotifications();
+        const notifs = notifications.getNotifications();
 
-    for (const notif of notifs) {
-        const alpha = 1 - (notif.age / notif.lifetime);
-        this.ctx.save();
-        this.ctx.globalAlpha = alpha;
+        for (const notif of notifs) {
+            const alpha = 1 - (notif.age / notif.lifetime);
+            this.ctx.save();
+            this.ctx.globalAlpha = alpha;
 
-        this.ctx.font = 'bold 16px sans-serif';
-        this.ctx.fillStyle = notif.color;
-        this.ctx.strokeStyle = '#000';
-        this.ctx.lineWidth = 3;
+            this.ctx.font = 'bold 16px sans-serif';
+            this.ctx.fillStyle = notif.color;
+            this.ctx.strokeStyle = '#000';
+            this.ctx.lineWidth = 3;
 
-        const px = notif.x * this.tileSize + this.tileSize / 2;
-        const py = notif.y * this.tileSize;
+            const px = notif.x * this.tileSize + this.tileSize / 2;
+            const py = notif.y * this.tileSize;
 
-        this.ctx.strokeText(notif.text, px, py);
-        this.ctx.fillText(notif.text, px, py);
+            this.ctx.strokeText(notif.text, px, py);
+            this.ctx.fillText(notif.text, px, py);
 
-        this.ctx.restore();
+            this.ctx.restore();
+        }
     }
-}
 
     public getTileFromScreen(screenX: number, screenY: number): { x: number, y: number } {
-    // Reverse translate
-    const mapX = screenX - 50;
-    const mapY = screenY - 50;
+        // Reverse translate
+        const mapX = screenX - 50;
+        const mapY = screenY - 50;
 
-    const tx = Math.floor(mapX / this.tileSize);
-    const ty = Math.floor(mapY / this.tileSize);
+        const tx = Math.floor(mapX / this.tileSize);
+        const ty = Math.floor(mapY / this.tileSize);
 
-    return { x: tx, y: ty };
-}
+        return { x: tx, y: ty };
+    }
 }

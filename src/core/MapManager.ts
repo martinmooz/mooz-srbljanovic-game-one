@@ -2,6 +2,7 @@ import { ITileData } from './ITileData';
 import { TrackUtilities } from './TrackUtilities';
 import { EconomyManager } from './EconomyManager';
 import { MaintenanceManager } from './MaintenanceManager';
+import { CargoType } from './CargoType';
 
 export class MapManager {
     private width: number;
@@ -22,7 +23,7 @@ export class MapManager {
                 row.push({
                     x,
                     y,
-                    trackType: 'empty',
+                    trackType: 'none',
                     bitmaskValue: 0,
                     segmentID: null
                 });
@@ -71,15 +72,42 @@ export class MapManager {
 
         if (tile.trackType === 'station') return false;
 
-        // Cost for station? Let's say 200.
+        // Cost for station
         const COST = 200;
         if (economy && !economy.deduct(COST)) {
             return false;
         }
 
         tile.trackType = 'station';
-        // Stations act like tracks for connectivity usually, or they are endpoints.
-        // For bitmasking, let's treat them as rails so tracks connect TO them.
+
+        // Assign Random Station Type
+        const types = ['COAL_MINE', 'IRON_MINE', 'STEEL_MILL', 'TOOL_FACTORY', 'CITY'];
+        const type = types[Math.floor(Math.random() * types.length)];
+        tile.stationType = type;
+
+        switch (type) {
+            case 'COAL_MINE':
+                tile.produces = [CargoType.COAL];
+                tile.accepts = [CargoType.PASSENGERS];
+                break;
+            case 'IRON_MINE':
+                tile.produces = [CargoType.IRON_ORE];
+                tile.accepts = [CargoType.PASSENGERS];
+                break;
+            case 'STEEL_MILL':
+                tile.produces = [CargoType.STEEL];
+                tile.accepts = [CargoType.COAL, CargoType.IRON_ORE];
+                break;
+            case 'TOOL_FACTORY':
+                tile.produces = [CargoType.TOOLS];
+                tile.accepts = [CargoType.STEEL];
+                break;
+            case 'CITY':
+                tile.produces = [CargoType.PASSENGERS];
+                tile.accepts = [CargoType.TOOLS, CargoType.GOODS, CargoType.PASSENGERS];
+                break;
+        }
+
         this.updateBitmask(x, y);
         this.updateNeighbors(x, y);
         return true;

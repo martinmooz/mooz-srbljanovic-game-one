@@ -6,7 +6,7 @@ import { EconomyManager } from '../core/EconomyManager';
 import { TimeManager } from '../core/TimeManager';
 import { TrainType, TrainTypeManager } from '../core/TrainActor';
 import { NotificationManager } from './NotificationManager';
-import { CargoTypeManager } from '../core/CargoType';
+import { CargoType, CargoTypeManager } from '../core/CargoType';
 import { SaveManager } from '../core/SaveManager';
 import { StatisticsManager } from '../core/StatisticsManager';
 import { AchievementManager } from '../core/AchievementManager';
@@ -18,6 +18,7 @@ import { TutorialManager } from './TutorialManager';
 import { ParticleManager, ParticleType } from './ParticleManager';
 import { MenuManager, MenuState } from './MenuManager';
 import { VictoryManager } from './VictoryManager';
+import { ProgressionManager } from './ProgressionManager';
 
 class Game {
     private map: MapManager;
@@ -41,6 +42,7 @@ class Game {
     private particleManager: ParticleManager;
     private menuManager: MenuManager;
     private victoryManager: VictoryManager;
+    private progressionManager: ProgressionManager;
     private isPaused: boolean = false;
 
     constructor() {
@@ -62,6 +64,7 @@ class Game {
         this.particleManager = new ParticleManager();
         this.menuManager = new MenuManager();
         this.victoryManager = new VictoryManager();
+        this.progressionManager = new ProgressionManager();
         this.lastTime = performance.now();
 
         // Try to load saved game
@@ -150,26 +153,50 @@ class Game {
 
     private buyTrain() {
         console.log('buyTrain called, balance:', this.economy.getBalance());
+        if (!this.selectedSpawnStation) {
+            this.notificationManager.addNotification('Select a station first!', 10, 10, '#FF0000');
+            return;
+        }
 
         const trainInfo = TrainTypeManager.getTrainInfo(this.selectedTrainType);
-        const COST = trainInfo.cost;
+        if (this.economy.deduct(trainInfo.cost)) {
+            // Determine cargo based on station
+            const tile = this.map.getTile(this.selectedSpawnStation.x, this.selectedSpawnStation.y);
+            let cargoType = CargoType.PASSENGERS; // Default
 
-        if (this.economy.deduct(COST)) {
-            console.log('Train purchased! New balance:', this.economy.getBalance());
+            if (tile && tile.produces && tile.produces.length > 0) {
+                // Pick random produced cargo
+                const typeStr = tile.produces[Math.floor(Math.random() * tile.produces.length)];
+                cargoType = typeStr as CargoType;
+            } else {
+                // Fallback or random
+                cargoType = CargoTypeManager.getRandomCargo();
+            }
 
-            // Spawn at selected station or default (0,0)
-            const spawnX = this.selectedSpawnStation?.x ?? 0;
-            const spawnY = this.selectedSpawnStation?.y ?? 0;
-
-            const train = new TrainActor(spawnX, spawnY, this.selectedTrainType, this.timeManager.getGameTimeDays());
+            const train = new TrainActor(
+                this.selectedSpawnStation.x,
+                this.selectedSpawnStation.y,
+                this.selectedTrainType,
+                this.timeManager.getGameTimeDays(),
+                cargoType
+            );
+            // train.startTime is set in constructor now
             this.trains.push(train);
-            this.audioManager.playSound('train');
             this.updateUI();
+            this.audioManager.playSound('build');
+
+            // Emit dust/smoke
+            this.particleManager.emit(ParticleType.SMOKE, this.selectedSpawnStation.x, this.selectedSpawnStation.y, 10);
+
+            // Tutorial progress
+            if (!this.tutorialManager.isCompleted() && this.tutorialManager.getCurrentStep() === 1) {
+                this.tutorialManager.nextStep();
+            }
         } else {
-            console.log('Not enough money! Need $' + COST + ', have $', this.economy.getBalance());
+            this.notificationManager.addNotification('Not enough money!', this.selectedSpawnStation.x, this.selectedSpawnStation.y, '#FF0000');
+            this.audioManager.playSound('error');
         }
     }
-
     private setupInput(canvas: HTMLCanvasElement) {
         canvas.addEventListener('mousedown', (e) => {
             const rect = canvas.getBoundingClientRect();
@@ -312,10 +339,37 @@ class Game {
         });
     }
 
+    private setupVictoryCallbacks(): void {
+        this.victoryManager.setupEventListeners({
+            onPlayAgain: () => {
+                this.victoryManager.hide();
+                this.menuManager.setState(MenuState.PLAYING);
+                this.isPaused = false;
+                // Reset game state
+                this.trains = [];
+                this.economy = new EconomyManager(1000);
+                this.timeManager = new TimeManager();
+                this.statisticsManager = new StatisticsManager();
+                this.map = new MapManager(20, 15); // Reset map
+                this.updateUI();
+            },
+            onMainMenu: () => {
+                this.victoryManager.hide();
+                this.menuManager.setState(MenuState.MAIN_MENU);
+                this.isPaused = true;
+            }
+        });
+    }
+
     private updateUI() {
         document.getElementById('revenue-display')!.innerText = this.economy.getBalance().toFixed(0);
         document.getElementById('train-count')!.innerText = this.trains.length.toString();
         document.getElementById('time-display')!.innerText = this.timeManager.getDayString();
+
+        // Update Progression UI
+        document.getElementById('level-display')!.innerText = this.progressionManager.getLevel().toString();
+        document.getElementById('xp-display')!.innerText = this.progressionManager.getXp().toString();
+        document.getElementById('next-xp-display')!.innerText = this.progressionManager.getNextLevelXp().toString();
 
         // Update selected train type display
         const trainInfo = TrainTypeManager.getTrainInfo(this.selectedTrainType);
@@ -372,7 +426,9 @@ class Game {
         // Update
         for (let i = this.trains.length - 1; i >= 0; i--) {
             const train = this.trains[i];
-            train.tick(this.map, deltaTime);
+            // Apply speed bonus from progression
+            const speedBonus = this.progressionManager.getBonuses().speed;
+            train.tick(this.map, deltaTime * speedBonus);
 
             // Emit smoke from moving trains
             if (Math.random() < 0.3) { // 30% chance each frame
@@ -399,7 +455,32 @@ class Game {
 
                 // Use dynamic market price for cargo
                 const marketPrice = this.marketManager.getCurrentPrice(train.cargoType);
-                const revenue = this.revenueSimulator.calculateRevenue(marketPrice, dist, timeInTransit, speedKPH);
+                let revenue = this.revenueSimulator.calculateRevenue(marketPrice, dist, timeInTransit, speedKPH);
+
+                // Check if station accepts this cargo
+                let accepted = true;
+                if (tile.accepts && tile.accepts.length > 0) {
+                    accepted = tile.accepts.includes(train.cargoType);
+                }
+
+                if (!accepted) {
+                    revenue *= 0.2; // Penalty for wrong station
+                    this.notificationManager.addNotification('Wrong Station!', train.x, train.y - 1, '#FF0000');
+                } else {
+                    // Apply revenue bonus
+                    revenue *= this.progressionManager.getBonuses().revenue;
+
+                    // Add XP
+                    const xpGained = Math.floor(revenue / 10);
+                    const levelUps = this.progressionManager.addXp(xpGained);
+
+                    // Notify level ups
+                    for (const msg of levelUps) {
+                        this.notificationManager.addNotification(msg, train.x, train.y - 2, '#00FFFF');
+                        this.audioManager.playSound('achievement'); // Reuse achievement sound
+                        this.particleManager.emit(ParticleType.STAR, train.x, train.y, 30);
+                    }
+                }
 
                 // Record statistics
                 this.statisticsManager.recordDelivery(revenue);
@@ -441,6 +522,24 @@ class Game {
 
                 this.economy.add(revenue);
                 this.updateUI();
+
+                // Check Victory
+                const currentStats = this.statisticsManager.getStats();
+                if (this.victoryManager.checkVictory({
+                    totalRevenue: currentStats.totalRevenue,
+                    totalDeliveries: currentStats.totalDeliveries,
+                    gameDays: this.timeManager.getGameTimeDays()
+                })) {
+                    this.victoryManager.showVictoryScreen({
+                        totalRevenue: currentStats.totalRevenue,
+                        totalDeliveries: currentStats.totalDeliveries,
+                        gameDays: this.timeManager.getGameTimeDays(),
+                        trainCount: this.trains.length,
+                        achievementCount: this.achievementManager.getUnlockedCount(),
+                        highestRevenue: currentStats.highestRevenue
+                    });
+                    this.isPaused = true;
+                }
 
                 // Despawn
                 this.trains.splice(i, 1);
