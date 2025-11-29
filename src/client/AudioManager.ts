@@ -85,6 +85,13 @@ export class AudioManager {
                 this.playNote(1046.50, t + 0.3, 0.4, 'triangle'); // C6
                 break;
 
+            case 'whistle':
+                // Train whistle (two tones)
+                this.playNote(587.33, t, 0.4, 'triangle'); // D5
+                this.playNote(698.46, t, 0.4, 'triangle'); // F5
+                this.playNote(587.33, t + 0.1, 0.4, 'triangle'); // D5 (harmony)
+                break;
+
             case 'error':
                 osc.type = 'sawtooth';
                 osc.frequency.setValueAtTime(150, t);
@@ -92,6 +99,25 @@ export class AudioManager {
                 gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
                 osc.start(t);
                 osc.stop(t + 0.3);
+                break;
+
+            case 'ui-click':
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(600, t);
+                osc.frequency.exponentialRampToValueAtTime(300, t + 0.1);
+                gain.gain.setValueAtTime(this.volume * 0.2, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.1);
+                osc.start(t);
+                osc.stop(t + 0.1);
+                break;
+
+            case 'ui-hover':
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, t);
+                gain.gain.setValueAtTime(this.volume * 0.05, t);
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.05);
+                osc.start(t);
+                osc.stop(t + 0.05);
                 break;
         }
     }

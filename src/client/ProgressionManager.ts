@@ -83,15 +83,20 @@ export class ProgressionManager {
         localStorage.setItem('railsim_progression', JSON.stringify(data));
     }
 
-    private load() {
-        const dataStr = localStorage.getItem('railsim_progression');
-        if (dataStr) {
-            const data = JSON.parse(dataStr);
+    public loadData(data: any) {
+        if (data) {
             this.xp = data.xp;
             this.level = data.level;
             this.nextLevelXp = data.nextLevelXp;
             this.unlockFlags = new Set(data.unlockFlags);
-            this.activeBonuses = data.activeBonuses;
+            this.activeBonuses = data.activeBonuses || { speed: 1, capacity: 1, revenue: 1 };
+        }
+    }
+
+    private load() {
+        const dataStr = localStorage.getItem('railsim_progression');
+        if (dataStr) {
+            this.loadData(JSON.parse(dataStr));
         }
     }
 }

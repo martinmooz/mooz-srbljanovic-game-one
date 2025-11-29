@@ -71,13 +71,19 @@ export class TrainActor {
         this.lastY = startY;
         this.progress = 0.5; // Start at center of tile
 
-        this.trainType = trainType;
-        const trainInfo = TrainTypeManager.getTrainInfo(trainType);
-        this.speed = trainInfo.speed;
+        this.trainType = trainType || TrainType.NORMAL;
+        const trainInfo = TrainTypeManager.getTrainInfo(this.trainType);
+        if (trainInfo) {
+            this.speed = trainInfo.speed;
+        } else {
+            console.error("TrainActor: Invalid trainType:", trainType);
+            this.speed = 1.0;
+        }
 
         this.startTime = startTime;
         this.cargoType = cargoType || CargoTypeManager.getRandomCargo();
-        this.cargoValue = CargoTypeManager.getCargoInfo(this.cargoType).baseValue;
+        const info = CargoTypeManager.getCargoInfo(this.cargoType);
+        this.cargoValue = info ? info.baseValue : 100; // Fallback
         this.cargo = {};
     }
 

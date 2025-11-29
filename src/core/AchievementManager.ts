@@ -91,4 +91,19 @@ export class AchievementManager {
     public getUnlockedCount(): number {
         return Array.from(this.achievements.values()).filter(a => a.unlocked).length;
     }
+
+    public getUnlockedAchievements(): string[] {
+        return Array.from(this.achievements.values())
+            .filter(a => a.unlocked)
+            .map(a => a.id);
+    }
+
+    public loadData(unlockedIds: string[]): void {
+        for (const id of unlockedIds) {
+            const ach = this.achievements.get(id);
+            if (ach) {
+                ach.unlocked = true;
+            }
+        }
+    }
 }

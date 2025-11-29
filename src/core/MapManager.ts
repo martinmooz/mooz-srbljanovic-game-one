@@ -16,6 +16,9 @@ export class MapManager {
         this.initializeMap();
     }
 
+    public getWidth(): number { return this.width; }
+    public getHeight(): number { return this.height; }
+
     private initializeMap(): void {
         // 1. Fill with Grass
         for (let y = 0; y < this.height; y++) {
@@ -44,6 +47,7 @@ export class MapManager {
         // Simple cellular automata or random clusters
         const numForests = 15;
         const numLakes = 5;
+        const numMountains = 3;
 
         // Forests
         for (let i = 0; i < numForests; i++) {
@@ -58,9 +62,16 @@ export class MapManager {
             let cy = Math.floor(Math.random() * this.height);
             this.growCluster(cx, cy, 'WATER', 0.7, 8);
         }
+
+        // Mountains
+        for (let i = 0; i < numMountains; i++) {
+            let cx = Math.floor(Math.random() * this.width);
+            let cy = Math.floor(Math.random() * this.height);
+            this.growCluster(cx, cy, 'MOUNTAIN', 0.8, 4);
+        }
     }
 
-    private growCluster(x: number, y: number, type: 'FOREST' | 'WATER', probability: number, steps: number): void {
+    private growCluster(x: number, y: number, type: 'FOREST' | 'WATER' | 'MOUNTAIN', probability: number, steps: number): void {
         const queue: { x: number, y: number }[] = [{ x, y }];
         const visited = new Set<string>();
 
@@ -146,6 +157,17 @@ export class MapManager {
         }
     }
 
+    public restoreStation(x: number, y: number, type: string): void {
+        const tile = this.getTile(x, y);
+        if (tile) {
+            tile.trackType = 'station';
+            tile.stationType = type;
+            this.configureStationType(tile, type);
+            this.updateBitmask(x, y);
+            this.updateNeighbors(x, y);
+        }
+    }
+
     public getTile(x: number, y: number): ITileData | null {
         if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
             return null;
@@ -160,10 +182,23 @@ export class MapManager {
         // If already rail or station, do nothing (or maybe upgrade?)
         if (tile.trackType === 'rail' || tile.trackType === 'station') return false;
 
-        // Check cost
-        const COST = 50;
-        if (economy && !economy.deduct(COST)) {
+        // Check Terrain
+        if (tile.terrainType === 'WATER' || tile.terrainType === 'MOUNTAIN') {
+            return false; // Cannot build on water or mountains yet
+        }
+
+        let cost = 50;
+        if (tile.terrainType === 'FOREST') {
+            cost += 20; // Extra cost to clear forest
+        }
+
+        if (economy && !economy.deduct(cost)) {
             return false;
+        }
+
+        // Clear terrain if forest
+        if (tile.terrainType === 'FOREST') {
+            tile.terrainType = 'GRASS';
         }
 
         tile.trackType = 'rail';
@@ -186,10 +221,23 @@ export class MapManager {
 
         if (tile.trackType === 'station') return false;
 
-        // Cost for station
-        const COST = 200;
-        if (economy && !economy.deduct(COST)) {
+        // Check Terrain
+        if (tile.terrainType === 'WATER' || tile.terrainType === 'MOUNTAIN') {
             return false;
+        }
+
+        // Cost for station
+        let cost = 200;
+        if (tile.terrainType === 'FOREST') {
+            cost += 50; // Clearing cost
+        }
+
+        if (economy && !economy.deduct(cost)) {
+            return false;
+        }
+
+        if (tile.terrainType === 'FOREST') {
+            tile.terrainType = 'GRASS';
         }
 
         tile.trackType = 'station';
@@ -205,7 +253,7 @@ export class MapManager {
         return true;
     }
 
-    private updateNeighbors(x: number, y: number) {
+    public updateNeighbors(x: number, y: number) {
         for (let dy = -1; dy <= 1; dy++) {
             for (let dx = -1; dx <= 1; dx++) {
                 if (dx === 0 && dy === 0) continue;
@@ -245,5 +293,50 @@ export class MapManager {
         const tile = this.getTile(x, y);
         // Treat station as track for connectivity
         return tile !== null && (tile.trackType === 'rail' || tile.trackType === 'station');
+    }
+
+    public getTrackPath(start: { x: number, y: number }, end: { x: number, y: number }): { x: number, y: number }[] {
+        const path: { x: number, y: number }[] = [];
+
+        // L-Shape Logic
+        // Determine the corner point.
+        // We can go Horizontal then Vertical, or Vertical then Horizontal.
+        // Let's pick based on which direction is longer, or just default to H then V.
+        // Let's do Horizontal first.
+
+        const dx = end.x - start.x;
+        const dy = end.y - start.y;
+
+        // Horizontal segment
+        const xDir = dx >= 0 ? 1 : -1;
+        for (let i = 0; i <= Math.abs(dx); i++) {
+            path.push({ x: start.x + i * xDir, y: start.y });
+        }
+
+        // Vertical segment
+        // Start from the corner (start.x + dx, start.y)
+        // We skip the corner itself if it's already added (which it is, as the last point of H segment)
+        const cornerX = start.x + dx;
+        const yDir = dy >= 0 ? 1 : -1;
+        for (let i = 1; i <= Math.abs(dy); i++) {
+            path.push({ x: cornerX, y: start.y + i * yDir });
+        }
+
+        return path;
+    }
+
+    public buildTrackPath(path: { x: number, y: number }[], economy: EconomyManager, maintenance?: MaintenanceManager, currentDay?: number): boolean {
+        let success = false;
+        // Check total cost first? Or build one by one?
+        // Building one by one is safer for funds running out mid-drag.
+        // But for UX, maybe we should check if they can afford ALL?
+        // Let's try to build all.
+
+        for (const pos of path) {
+            if (this.placeTrack(pos.x, pos.y, economy, maintenance, currentDay)) {
+                success = true;
+            }
+        }
+        return success;
     }
 }

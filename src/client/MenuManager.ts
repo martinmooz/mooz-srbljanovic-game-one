@@ -39,26 +39,74 @@ export class MenuManager {
         `;
 
         this.mainMenuElement.innerHTML = `
-            <div style="text-align: center;">
-                <h1 style="font-size: 64px; margin: 0 0 20px 0; color: #FFD700; text-shadow: 0 4px 8px rgba(0,0,0,0.5);">
+            <div class="glass-panel" style="padding: 60px; text-align: center; min-width: 400px; border: 1px solid rgba(255,255,255,0.1);">
+                <h1 style="font-size: 72px; margin: 0 0 10px 0; background: linear-gradient(135deg, #FFD700 0%, #FDB931 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));">
                     🚂 RailSim
                 </h1>
-                <p style="font-size: 20px; margin: 0 0 40px 0; color: #E0E0E0;">
+                <p style="font-size: 18px; margin: 0 0 50px 0; color: #a0a0a0; letter-spacing: 1px; text-transform: uppercase;">
                     Build Your Railway Empire
                 </p>
-                <div style="display: flex; flex-direction: column; gap: 16px; align-items: center;">
-                    <button id="btn-new-game" class="menu-button" style="width: 250px;">New Game</button>
-                    <button id="btn-continue" class="menu-button" style="width: 250px;">Continue</button>
-                    <button id="btn-tutorial-menu" class="menu-button" style="width: 250px;">Tutorial</button>
-                    <button id="btn-settings-menu" class="menu-button" style="width: 250px;">Settings</button>
+                <div style="display: flex; flex-direction: column; gap: 20px; align-items: center;">
+                    <button id="btn-new-game" class="primary" style="width: 100%; justify-content: center; padding: 16px; font-size: 16px;">
+                        <span>▶</span> New Game
+                    </button>
+                    <button id="btn-continue" style="width: 100%; justify-content: center; padding: 16px; font-size: 16px;">
+                        <span>⏯</span> Continue
+                    </button>
+                    <div style="display: flex; gap: 10px; width: 100%;">
+                         <button id="btn-editor" style="flex: 1; justify-content: center;">🛠 Editor</button>
+                         <button id="btn-tutorial-menu" style="flex: 1; justify-content: center;">🎓 Tutorial</button>
+                    </div>
+                    <button id="btn-settings-menu" style="width: 100%; justify-content: center;">⚙ Settings</button>
                 </div>
-                <p style="margin-top: 60px; color: #999; font-size: 14px;">
-                    Made with ❤️ | v1.0
+                <p style="margin-top: 40px; color: #666; font-size: 12px;">
+                    v1.1 • Premium Edition
                 </p>
             </div>
         `;
 
         document.body.appendChild(this.mainMenuElement);
+    }
+
+    // ... (createPauseMenu and createSettingsMenu remain unchanged)
+
+    public setCallbacks(callbacks: {
+        onStartGame: () => void;
+        onResumeGame: () => void;
+        onRestartGame: () => void;
+        onOpenSettings: () => void;
+        onExitToMain: () => void;
+        onOpenEditor: () => void;
+    }): void {
+        document.getElementById('btn-new-game')?.addEventListener('click', callbacks.onStartGame);
+        document.getElementById('btn-continue')?.addEventListener('click', callbacks.onResumeGame); // Using resume for continue for now
+        document.getElementById('btn-editor')?.addEventListener('click', callbacks.onOpenEditor);
+
+        document.getElementById('btn-resume')?.addEventListener('click', callbacks.onResumeGame);
+        document.getElementById('btn-main-menu')?.addEventListener('click', callbacks.onExitToMain);
+
+        document.getElementById('btn-settings-menu')?.addEventListener('click', callbacks.onOpenSettings);
+        document.getElementById('btn-settings-pause')?.addEventListener('click', callbacks.onOpenSettings);
+
+        document.getElementById('btn-close-settings')?.addEventListener('click', () => {
+            // This logic might need to be smarter to know where to go back to
+            // For now, let's assume if we are paused, go to pause menu, else main menu?
+            // Or just hide settings.
+            // The Game class handles state, so maybe we just need a callback for close settings?
+            // But MenuManager handles visibility.
+            // Let's just hide settings and show previous state if possible.
+            // For now, hardcode to main menu or pause based on current state?
+            // Actually, Game.ts sets state.
+            // Let's leave the close button logic simple for now or rely on Game.ts to handle it if we exposed a callback.
+            // But wait, Game.ts didn't pass onCloseSettings.
+            // Let's just hide settings.
+            this.settingsMenuElement!.style.display = 'none';
+            if (this.currentState === MenuState.PAUSED) {
+                this.pauseMenuElement!.style.display = 'flex';
+            } else {
+                this.mainMenuElement!.style.display = 'flex';
+            }
+        });
     }
 
     private createPauseMenu(): void {
@@ -80,12 +128,12 @@ export class MenuManager {
         `;
 
         this.pauseMenuElement.innerHTML = `
-            <div style="text-align: center; background: rgba(255,255,255,0.1); padding: 40px; border-radius: 16px; border: 2px solid rgba(255,255,255,0.2);">
-                <h2 style="font-size: 48px; margin: 0 0 30px 0; color: #FFF;">Paused</h2>
+            <div class="glass-panel" style="text-align: center; padding: 40px; min-width: 300px;">
+                <h2 style="font-size: 32px; margin: 0 0 30px 0; color: #FFF;">Paused</h2>
                 <div style="display: flex; flex-direction: column; gap: 16px; align-items: center;">
-                    <button id="btn-resume" class="menu-button" style="width: 200px;">Resume</button>
-                    <button id="btn-settings-pause" class="menu-button" style="width: 200px;">Settings</button>
-                    <button id="btn-main-menu" class="menu-button" style="width: 200px;">Main Menu</button>
+                    <button id="btn-resume" class="primary" style="width: 100%; justify-content: center;">Resume</button>
+                    <button id="btn-settings-pause" style="width: 100%; justify-content: center;">Settings</button>
+                    <button id="btn-main-menu" class="danger" style="width: 100%; justify-content: center;">Main Menu</button>
                 </div>
             </div>
         `;
@@ -112,25 +160,27 @@ export class MenuManager {
         `;
 
         this.settingsMenuElement.innerHTML = `
-            <h2 style="margin: 0 0 24px 0; color: #FFF;">Settings</h2>
-            <div style="display: flex; flex-direction: column; gap: 20px;">
-                <div>
-                    <label style="color: #CCC; display: block; margin-bottom: 8px;">Sound Volume</label>
-                    <input type="range" id="sound-volume" min="0" max="100" value="50" style="width: 100%;">
+            <div class="glass-panel" style="padding: 30px; min-width: 400px;">
+                <h2 style="margin: 0 0 24px 0; color: #FFF; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">Settings</h2>
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <div>
+                        <label style="color: #CCC; display: block; margin-bottom: 8px; font-size: 14px;">Sound Volume</label>
+                        <input type="range" id="sound-volume" min="0" max="100" value="50" style="width: 100%; accent-color: #4facfe;">
+                    </div>
+                    <div>
+                        <label style="color: #CCC; display: block; margin-bottom: 8px; font-size: 14px;">Auto-save Interval</label>
+                        <select id="autosave-interval" style="width: 100%; padding: 10px; background: rgba(0,0,0,0.3); color: #FFF; border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+                            <option value="30">30 seconds</option>
+                            <option value="60">1 minute</option>
+                            <option value="300">5 minutes</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; gap: 12px; margin-top: 20px;">
+                        <button id="btn-reset-tutorial" style="flex: 1; justify-content: center;">Reset Tutorial</button>
+                        <button id="btn-clear-save" class="danger" style="flex: 1; justify-content: center;">Clear Save</button>
+                    </div>
+                    <button id="btn-close-settings" style="width: 100%; justify-content: center; margin-top: 10px;">Close</button>
                 </div>
-                <div>
-                    <label style="color: #CCC; display: block; margin-bottom: 8px;">Auto-save Interval</label>
-                    <select id="autosave-interval" style="width: 100%; padding: 8px; background: #333; color: #FFF; border: 1px solid #555; border-radius: 4px;">
-                        <option value="30">30 seconds</option>
-                        <option value="60">1 minute</option>
-                        <option value="300">5 minutes</option>
-                    </select>
-                </div>
-                <div style="display: flex; gap: 12px; margin-top: 20px;">
-                    <button id="btn-reset-tutorial" class="menu-button" style="flex: 1;">Reset Tutorial</button>
-                    <button id="btn-clear-save" class="menu-button" style="flex: 1; background: #FF6B6B;">Clear Save</button>
-                </div>
-                <button id="btn-close-settings" class="menu-button">Close</button>
             </div>
         `;
 

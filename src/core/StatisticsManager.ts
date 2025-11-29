@@ -37,4 +37,8 @@ export class StatisticsManager {
     public loadStats(stats: GameStatistics): void {
         this.stats = { ...stats };
     }
+
+    public loadData(stats: GameStatistics): void {
+        this.loadStats(stats);
+    }
 }

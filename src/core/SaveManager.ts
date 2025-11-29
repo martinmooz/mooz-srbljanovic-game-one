@@ -19,22 +19,46 @@ interface SaveData {
         trainType: TrainType;
         cargoType: CargoType;
         startTime: number;
+        // We should also save cargo amount/value if it changes, but for now this is fine
     }[];
     map: {
-        tiles: { x: number, y: number, trackType: string }[];
+        width: number;
+        height: number;
+        tiles: {
+            x: number;
+            y: number;
+            trackType: string;
+            stationType?: string;
+            terrainType?: string;
+            bitmaskValue: number;
+        }[];
     };
+    progression: {
+        xp: number;
+        level: number;
+        unlocks: string[];
+    };
+    statistics: {
+        totalRevenue: number;
+        totalDeliveries: number;
+        highestRevenue: number;
+    };
+    achievements: string[]; // IDs of unlocked achievements
     selectedSpawn: { x: number, y: number } | null;
 }
 
 export class SaveManager {
     private static SAVE_KEY = 'railsim_save';
-    private static VERSION = 1;
+    private static VERSION = 2; // Bump version
 
     public static save(
         economy: EconomyManager,
         timeManager: TimeManager,
         trains: TrainActor[],
         map: MapManager,
+        progression: any, // ProgressionManager
+        statistics: any, // StatisticsManager
+        achievements: any, // AchievementManager
         selectedSpawn: { x: number, y: number } | null
     ): void {
         const saveData: SaveData = {
@@ -43,7 +67,7 @@ export class SaveManager {
                 balance: economy.getBalance()
             },
             time: {
-                totalTicks: timeManager.getGameTimeDays() * 24, // Convert back to ticks
+                totalTicks: timeManager.getGameTimeDays() * 24,
                 gameSpeed: timeManager.getSpeed()
             },
             trains: trains.map(t => ({
@@ -54,14 +78,23 @@ export class SaveManager {
                 startTime: t.startTime
             })),
             map: {
+                width: map.getWidth(),
+                height: map.getHeight(),
                 tiles: this.serializeMap(map)
             },
+            progression: {
+                xp: progression.getXp(),
+                level: progression.getLevel(),
+                unlocks: Array.from(progression.unlockFlags || [])
+            },
+            statistics: statistics.getStats(),
+            achievements: achievements.getUnlockedAchievements(),
             selectedSpawn
         };
 
         try {
             localStorage.setItem(this.SAVE_KEY, JSON.stringify(saveData));
-            console.log('Game saved successfully');
+            // console.log('Game saved successfully'); // Spammy
         } catch (e) {
             console.error('Failed to save game:', e);
         }
@@ -74,7 +107,7 @@ export class SaveManager {
 
             const saveData = JSON.parse(data) as SaveData;
             if (saveData.version !== this.VERSION) {
-                console.warn('Save version mismatch');
+                console.warn('Save version mismatch or old save');
                 return null;
             }
 
@@ -85,19 +118,26 @@ export class SaveManager {
         }
     }
 
-    private static serializeMap(map: MapManager): { x: number, y: number, trackType: string }[] {
-        const tiles: { x: number, y: number, trackType: string }[] = [];
-
-        // Iterate through map (assuming 20x15)
-        for (let y = 0; y < 15; y++) {
-            for (let x = 0; x < 20; x++) {
+    private static serializeMap(map: MapManager): any[] {
+        const tiles: any[] = [];
+        for (let y = 0; y < map.getHeight(); y++) {
+            for (let x = 0; x < map.getWidth(); x++) {
                 const tile = map.getTile(x, y);
-                if (tile && (tile.trackType === 'rail' || tile.trackType === 'station')) {
-                    tiles.push({ x, y, trackType: tile.trackType });
+                if (tile) {
+                    // Save everything that isn't default
+                    if (tile.trackType !== 'none' || tile.terrainType !== 'GRASS') {
+                        tiles.push({
+                            x,
+                            y,
+                            trackType: tile.trackType,
+                            stationType: tile.stationType,
+                            terrainType: tile.terrainType,
+                            bitmaskValue: tile.bitmaskValue
+                        });
+                    }
                 }
             }
         }
-
         return tiles;
     }
 }

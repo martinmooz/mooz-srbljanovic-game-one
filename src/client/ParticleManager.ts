@@ -2,7 +2,9 @@ export enum ParticleType {
     SMOKE = 'smoke',
     SPARKLE = 'sparkle',
     DUST = 'dust',
-    STAR = 'star'
+    STAR = 'star',
+    STEAM = 'steam',
+    SPARKS = 'sparks'
 }
 
 export interface Particle {
@@ -77,6 +79,24 @@ export class ParticleManager {
                 particle.size = 4 + Math.random() * 4;
                 const colors = ['#FFD700', '#FF6B6B', '#51CF66', '#4A90E2', '#9B59B6'];
                 particle.color = colors[Math.floor(Math.random() * colors.length)];
+                break;
+
+            case ParticleType.STEAM:
+                particle.vx = (Math.random() - 0.5) * 5;
+                particle.vy = -15 - Math.random() * 10;
+                particle.maxLife = 2.0;
+                particle.size = 4 + Math.random() * 6;
+                particle.color = `rgba(255, 255, 255, ${0.3 + Math.random() * 0.2})`;
+                break;
+
+            case ParticleType.SPARKS:
+                const sparkAngle = Math.random() * Math.PI; // Upward arc
+                const sparkSpeed = 20 + Math.random() * 30;
+                particle.vx = Math.cos(sparkAngle) * sparkSpeed;
+                particle.vy = -Math.abs(Math.sin(sparkAngle) * sparkSpeed);
+                particle.maxLife = 0.4;
+                particle.size = 2 + Math.random() * 2;
+                particle.color = '#FFD700'; // Gold
                 break;
         }
 
