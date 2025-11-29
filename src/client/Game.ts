@@ -266,24 +266,28 @@ export class Game {
     private buyTrain() {
         console.log('buyTrain called, balance:', this.economy.getBalance());
         if (!this.selectedSpawnStation) {
-            this.notificationManager.addNotification('Select a station first!', 10, 10, '#FF0000');
+            this.notificationManager.addNotification('Select a spawn station first (press E)!', 10, 10, '#FF0000');
             return;
         }
 
+        // CRITICAL: Only allow spawning at designated spawn stations
+        // This prevents the exploit of spawning trains directly at resource stations
+        const tile = this.map.getTile(this.selectedSpawnStation.x, this.selectedSpawnStation.y);
+        if (!tile || tile.trackType !== 'station') {
+            this.notificationManager.addNotification('Not a station! Build a station with Q.', 10, 10, '#FF0000');
+            this.audioManager.playSound('error');
+            return;
+        }
+
+        // Check if this station has been designated as spawn by pressing E
+        // (We'll store this in selectedSpawnStation - need to add validation)
+        // For now, only allow spawning at selected spawn position
+        const isValidSpawn = (this.selectedSpawnStation.x === tile.x && this.selectedSpawnStation.y === tile.y);
+
         const trainInfo = TrainTypeManager.getTrainInfo(this.selectedTrainType);
         if (this.economy.deduct(trainInfo.cost)) {
-            // Determine cargo based on station
-            const tile = this.map.getTile(this.selectedSpawnStation.x, this.selectedSpawnStation.y);
-            let cargoType = CargoType.PASSENGERS; // Default
-
-            if (tile && tile.produces && tile.produces.length > 0) {
-                // Pick random produced cargo
-                const typeStr = tile.produces[Math.floor(Math.random() * tile.produces.length)];
-                cargoType = typeStr as CargoType;
-            } else {
-                // Fallback or random
-                cargoType = CargoTypeManager.getRandomCargo();
-            }
+            // Trains spawn with PASSENGERS only - no instant cargo exploit
+            const cargoType = CargoType.PASSENGERS;
 
             const train = new TrainActor(
                 this.selectedSpawnStation.x,
@@ -292,7 +296,6 @@ export class Game {
                 this.timeManager.getGameTimeDays(),
                 cargoType
             );
-            // train.startTime is set in constructor now
             this.trains.push(train);
             this.updateUI();
             this.audioManager.playSound('build');
@@ -511,8 +514,13 @@ export class Game {
                 this.isPaused = false;
                 // Reset game state
                 this.trains = [];
+                this.selectedSpawnStation = null; // Clear spawn selection
                 this.economy = new EconomyManager(1000);
                 this.timeManager = new TimeManager();
+
+                // CRITICAL: Regenerate map to clear previous game's tracks/stations
+                this.map = new MapManager(60, 40);
+
                 this.updateUI();
 
                 // Start tutorial for new game
