@@ -116,6 +116,15 @@ export class Game {
     }
 
     public saveGame(): void {
+        // Show save indicator
+        const indicator = document.getElementById('auto-save-indicator');
+        if (indicator) {
+            indicator.style.opacity = '1';
+            setTimeout(() => {
+                indicator.style.opacity = '0';
+            }, 1500);
+        }
+
         SaveManager.save(
             this.economy,
             this.timeManager,
@@ -343,6 +352,9 @@ export class Game {
 
             if (this.isDragging) {
                 this.dragEndTile = { x: tile.x, y: tile.y };
+                this.updateBuildCostPreview();
+            } else {
+                this.hideBuildCostPreview();
             }
 
             // Check if hovering over a train
@@ -401,6 +413,7 @@ export class Game {
             this.isDragging = false;
             this.dragStartTile = null;
             this.dragEndTile = null;
+            this.hideBuildCostPreview();
         });
 
         window.addEventListener('keydown', (e) => {
@@ -611,6 +624,61 @@ export class Game {
         if (btnHeavy) btnHeavy.classList.toggle('active', this.selectedTrainType === TrainType.HEAVY);
     }
 
+    private updateBuildCostPreview(): void {
+        if (!this.dragStartTile || !this.dragEndTile) return;
+
+        const path = this.map.getTrackPath(this.dragStartTile, this.dragEndTile);
+        const cost = path.length * 50; // $50 per track tile
+
+        const preview = document.getElementById('build-cost-preview');
+        const amount = document.getElementById('build-cost-amount');
+
+        if (preview && amount) {
+            preview.style.display = 'flex';
+            amount.textContent = `$${cost}`;
+
+            // Red if insufficient funds
+            const canAfford = this.economy.getBalance() >= cost;
+            amount.style.color = canAfford ? '#51CF66' : '#FF6B6B';
+        }
+    }
+
+    private hideBuildCostPreview(): void {
+        const preview = document.getElementById('build-cost-preview');
+        if (preview) {
+            preview.style.display = 'none';
+        }
+    }
+
+    private celebrateFirstDelivery(x: number, y: number): void {
+        // Screen shake
+        const canvas = document.getElementById('gameCanvas');
+        if (canvas) {
+            canvas.style.animation = 'screen-shake 0.3s';
+            setTimeout(() => {
+                canvas.style.animation = '';
+            }, 300);
+        }
+
+        // Confetti explosion
+        for (let i = 0; i < 30; i++) {
+            const angle = (Math.PI * 2 * i) / 30;
+            const speed = 2 + Math.random() * 2;
+            const dx = Math.cos(angle) * speed;
+            const dy = Math.sin(angle) * speed;
+            this.particleManager.emit(ParticleType.SPARKLE, x + dx * 0.5, y + dy * 0.5, 1);
+        }
+
+        // Big notification
+        this.notificationManager.addNotification(
+            '🎉 FIRST DELIVERY! 🎉',
+            x,
+            y - 2,
+            '#FFD700'
+        );
+        this.audioManager.playSound('achievement');
+    }
+
     private loop() {
         const now = performance.now();
         let deltaTime = (now - this.lastTime) / 1000; // Seconds
@@ -753,6 +821,12 @@ export class Game {
 
                     // Record statistics
                     this.statisticsManager.recordDelivery(revenue);
+
+                    // First delivery celebration!
+                    const stats = this.statisticsManager.getStats();
+                    if (stats.totalDeliveries === 1) {
+                        this.celebrateFirstDelivery(train.x, train.y);
+                    }
 
                     // Check achievements
                     const unlockedAchievements = this.achievementManager.checkAchievements({

@@ -91,6 +91,30 @@ body {
     animation: goal-pulse 1.5s ease-out;
 }
 
+/* Screen Shake Animation */
+@keyframes screen-shake {
+
+    0%,
+    100% {
+        transform: translate(0, 0);
+    }
+
+    10%,
+    30%,
+    50%,
+    70%,
+    90% {
+        transform: translate(-2px, -2px);
+    }
+
+    20%,
+    40%,
+    60%,
+    80% {
+        transform: translate(2px, 2px);
+    }
+}
+
 /* Top Center: Notifications/Messages (Future) */
 #message-area {
     grid-column: 2;

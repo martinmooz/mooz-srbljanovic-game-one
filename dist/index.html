@@ -5,8 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RailSim MVP</title>
-  <script type="module" crossorigin src="/assets/index-BRYWfrqX.js"></script>
-  <link rel="stylesheet" crossorigin href="/assets/index-B-MG0jUF.css">
+  <script type="module" crossorigin src="/assets/index-DBNw7uEq.js"></script>
+  <link rel="stylesheet" crossorigin href="/assets/index-DSfaXxIp.css">
 </head>
 
 <body>
@@ -69,90 +69,104 @@
                     <div id="current-goal-text" style="font-weight: bold; color: #FFD700;">Expand your railway</div>
                 </div>
             </div>
+        </div>
 
-            <!-- Top Right: Event Banner -->
-            <div id="event-banner" class="glass-panel"
-                style="grid-column: 3; grid-row: 1; justify-self: end; padding: 10px 15px; display: none; align-items: center; gap: 8px; height: fit-content; margin-top: 10px; margin-right: 10px;">
-                <div id="event-icon" style="font-size: 20px;">⚡</div>
-                <div style="display: flex; flex-direction: column;">
-                    <div style="font-size: 9px; color: #aaa; text-transform: uppercase; letter-spacing: 1px;">Active
-                        Event</div>
-                    <div id="event-name" style="font-weight: bold; color: #FFA500; font-size: 12px;">Gold Rush</div>
-                </div>
-            </div>
+        <!-- Auto-Save Indicator -->
+        <div id="auto-save-indicator"
+            style="position: absolute; top: 10px; left: 10px; padding: 6px 12px; background: rgba(0, 0, 0, 0.6); border-radius: 8px; font-size: 12px; color: #51CF66; opacity: 0; transition: opacity 0.3s;">
+            💾 Saving...
+        </div>
 
-            <!-- Bottom Center: Build Toolbar -->
-            <div id="toolbar-container" class="glass-panel">
-                <div style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
-                    <div class="train-selector">
-                        <button id="btn-train-normal" class="train-option active"
-                            style="color: #FF6B6B;">Normal</button>
-                        <button id="btn-train-fast" class="train-option" style="color: #51CF66;">Fast</button>
-                        <button id="btn-train-heavy" class="train-option" style="color: #339AF0;">Heavy</button>
-                    </div>
-                    <div style="font-size: 10px; color: #aaa;">Selected: <span id="selected-train-type">Normal
-                            ($100)</span></div>
-                </div>
-
-                <div style="width: 1px; height: 30px; background: rgba(255,255,255,0.1);"></div>
-
-                <div style="display: flex; flex-direction: column; align-items: center;">
-                    <div style="font-size: 10px; color: #aaa; margin-bottom: 2px;">Spawn: <span
-                            id="spawn-station">None</span></div>
-                    <button id="btn-buy-train" class="success">
-                        <span>🚂 Buy Train</span>
-                    </button>
-                </div>
-
-                <div style="width: 1px; height: 30px; background: rgba(255,255,255,0.1);"></div>
-
-                <div style="font-size: 12px; color: #aaa; text-align: left;">
-                    <div><b>L-Click</b> Build Track</div>
-                    <div><b>Q</b> Station ($200)</div>
-                    <div><b>E</b> Set Spawn</div>
-                </div>
+        <!-- Top Right: Event Banner -->
+        <div id="event-banner" class="glass-panel"
+            style="grid-column: 3; grid-row: 1; justify-self: end; padding: 10px 15px; display: none; align-items: center; gap: 8px; height: fit-content; margin-top: 10px; margin-right: 10px;">
+            <div id="event-icon" style="font-size: 20px;">⚡</div>
+            <div style="display: flex; flex-direction: column;">
+                <div style="font-size: 9px; color: #aaa; text-transform: uppercase; letter-spacing: 1px;">Active
+                    Event</div>
+                <div id="event-name" style="font-weight: bold; color: #FFA500; font-size: 12px;">Gold Rush</div>
             </div>
         </div>
 
-        <!-- Tooltip -->
-        <div id="tooltip"></div>
-
-        <!-- Editor UI (Hidden by default) -->
-        <div id="editor-ui" class="glass-panel" style="display: none;">
-            <div
-                style="margin-bottom: 10px; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
-                Map Editor</div>
-
-            <div style="margin-bottom: 10px;">
-                <div style="font-size: 0.8em; color: #aaa;">Terrain</div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-                    <button id="tool-grass" class="editor-btn">Grass</button>
-                    <button id="tool-water" class="editor-btn">Water</button>
-                    <button id="tool-forest" class="editor-btn">Forest</button>
-                    <button id="tool-mountain" class="editor-btn">Mtn</button>
+        <!-- Bottom Center: Build Toolbar -->
+        <div id="toolbar-container" class="glass-panel">
+            <div style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
+                <div class="train-selector">
+                    <button id="btn-train-normal" class="train-option active" style="color: #FF6B6B;">Normal</button>
+                    <button id="btn-train-fast" class="train-option" style="color: #51CF66;">Fast</button>
+                    <button id="btn-train-heavy" class="train-option" style="color: #339AF0;">Heavy</button>
                 </div>
+                <div style="font-size: 10px; color: #aaa;">Selected: <span id="selected-train-type">Normal
+                        ($100)</span></div>
             </div>
 
-            <div style="margin-bottom: 10px;">
-                <div style="font-size: 0.8em; color: #aaa;">Stations</div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
-                    <button id="tool-city" class="editor-btn">City</button>
-                    <button id="tool-coal" class="editor-btn">Coal</button>
-                    <button id="tool-iron" class="editor-btn">Iron</button>
-                    <button id="tool-steel" class="editor-btn">Steel</button>
-                    <button id="tool-factory" class="editor-btn">Factory</button>
-                </div>
+            <div style="width: 1px; height: 30px; background: rgba(255,255,255,0.1);"></div>
+
+            <div style="display: flex; flex-direction: column; align-items: center;">
+                <div style="font-size: 10px; color: #aaa; margin-bottom: 2px;">Spawn: <span
+                        id="spawn-station">None</span></div>
+                <button id="btn-buy-train" class="success">
+                    <span>🚂 Buy Train</span>
+                </button>
             </div>
 
-            <div style="margin-bottom: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
-                <button id="tool-clear" class="danger" style="width: 100%;">Clear Tile</button>
-            </div>
+            <div style="width: 1px; height: 30px; background: rgba(255,255,255,0.1);"></div>
 
-            <div style="display: flex; gap: 5px;">
-                <button id="editor-save" class="success" style="flex: 1;">Save</button>
-                <button id="editor-exit" style="flex: 1;">Exit</button>
+            <div style="font-size: 12px; color: #aaa; text-align: left;">
+                <div><b>L-Click</b> Build Track</div>
+                <div><b>Q</b> Station ($200)</div>
+                <div><b>E</b> Set Spawn</div>
             </div>
         </div>
+
+        <!-- Build Cost Preview -->
+        <div id="build-cost-preview" class="glass-panel"
+            style="grid-column: 2; grid-row: 3; justify-self: center; align-self: end; padding: 8px 16px; display: none; margin-bottom: 80px;">
+            <div style="font-size: 14px; font-weight: bold;">
+                💰 Cost: <span id="build-cost-amount">$0</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tooltip -->
+    <div id="tooltip"></div>
+
+    <!-- Editor UI (Hidden by default) -->
+    <div id="editor-ui" class="glass-panel" style="display: none;">
+        <div
+            style="margin-bottom: 10px; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
+            Map Editor</div>
+
+        <div style="margin-bottom: 10px;">
+            <div style="font-size: 0.8em; color: #aaa;">Terrain</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+                <button id="tool-grass" class="editor-btn">Grass</button>
+                <button id="tool-water" class="editor-btn">Water</button>
+                <button id="tool-forest" class="editor-btn">Forest</button>
+                <button id="tool-mountain" class="editor-btn">Mtn</button>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 10px;">
+            <div style="font-size: 0.8em; color: #aaa;">Stations</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+                <button id="tool-city" class="editor-btn">City</button>
+                <button id="tool-coal" class="editor-btn">Coal</button>
+                <button id="tool-iron" class="editor-btn">Iron</button>
+                <button id="tool-steel" class="editor-btn">Steel</button>
+                <button id="tool-factory" class="editor-btn">Factory</button>
+            </div>
+        </div>
+
+        <div style="margin-bottom: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+            <button id="tool-clear" class="danger" style="width: 100%;">Clear Tile</button>
+        </div>
+
+        <div style="display: flex; gap: 5px;">
+            <button id="editor-save" class="success" style="flex: 1;">Save</button>
+            <button id="editor-exit" style="flex: 1;">Exit</button>
+        </div>
+    </div>
     </div>
 </body>
 
