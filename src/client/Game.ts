@@ -638,7 +638,8 @@ export class Game {
                     this.camera,
                     this.selectedSpawnStation,
                     this.timeManager.getGameTimeDays(),
-                    this.eventManager
+                    this.eventManager,
+                    this.currentMouseTile
                 );
 
                 // Render Ghost Tracks if dragging
@@ -846,10 +847,10 @@ export class Game {
                 this.particleManager,
                 this.camera,
                 this.selectedSpawnStation,
-                this.timeManager.getGameTimeDays()
-            );
-
-            // Render Ghost Tracks if dragging
+                this.timeManager.getGameTimeDays(),
+                this.eventManager,
+                this.isDragging ? null : this.currentMouseTile
+            );    // Render Ghost Tracks if dragging
             if (this.isDragging && this.dragStartTile && this.dragEndTile) {
                 const path = this.map.getTrackPath(this.dragStartTile, this.dragEndTile);
                 this.renderer.drawGhostTracks(path);

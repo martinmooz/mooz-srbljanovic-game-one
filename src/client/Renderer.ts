@@ -10,6 +10,8 @@ export class Renderer {
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
     private tileSize: number = 40;
+    private weatherParticles: { x: number, y: number, speed: number, size: number }[] = [];
+    private lastWeatherType: EventType | null = null;
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
@@ -37,7 +39,8 @@ export class Renderer {
         camera: Camera,
         selectedSpawn: { x: number, y: number } | null | undefined,
         gameTime: number, // Fractional day (0.0 - 1.0)
-        eventManager?: EventManager
+        eventManager?: EventManager,
+        hoverTile?: { x: number, y: number } | null
     ) {
         // Clear with full resolution dimensions
         this.ctx.save();
@@ -80,6 +83,12 @@ export class Renderer {
 
                 // Draw World
                 this.drawGrid(map, selectedSpawn, timeOfDay, isNight);
+
+                // Draw hover tile highlight
+                if (hoverTile) {
+                    this.drawHoverTile(hoverTile.x, hoverTile.y, map);
+                }
+
                 this.drawTrains(trains, isNight);
                 this.drawNotifications(notifications);
                 particles.render(this.ctx, this.tileSize, 0, 0);
@@ -186,34 +195,60 @@ export class Renderer {
 
     private drawWeather(eventManager: EventManager): void {
         const event = eventManager.getActiveEvent();
-        if (!event) return;
+        if (!event) {
+            this.lastWeatherType = null;
+            this.weatherParticles = [];
+            return;
+        }
 
+        // Regenerate particles if weather type changed
+        if (this.lastWeatherType !== event.type) {
+            this.lastWeatherType = event.type;
+            this.generateWeatherParticles(event.type);
+        }
+
+        // Update and draw particles
         this.ctx.save();
 
         if (event.type === EventType.RAIN) {
-            this.ctx.strokeStyle = 'rgba(174, 194, 224, 0.5)';
-            this.ctx.lineWidth = 1;
-            this.ctx.beginPath();
-            for (let i = 0; i < 100; i++) {
-                const x = Math.random() * window.innerWidth;
-                const y = Math.random() * window.innerHeight;
-                this.ctx.moveTo(x, y);
-                this.ctx.lineTo(x - 5, y + 10);
+            this.ctx.strokeStyle = 'rgba(174, 194, 224, 0.7)';
+            this.ctx.lineWidth = 2;
+
+            for (const p of this.weatherParticles) {
+                // Update position
+                p.y += p.speed;
+                if (p.y > window.innerHeight) {
+                    p.y = -10;
+                    p.x = Math.random() * window.innerWidth;
+                }
+
+                // Draw rain drop
+                this.ctx.beginPath();
+                this.ctx.moveTo(p.x, p.y);
+                this.ctx.lineTo(p.x - 3, p.y + 10);
+                this.ctx.stroke();
             }
-            this.ctx.stroke();
 
             // Overlay
             this.ctx.fillStyle = 'rgba(0, 0, 50, 0.1)';
             this.ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
 
         } else if (event.type === EventType.SNOW) {
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            for (let i = 0; i < 50; i++) {
-                const x = Math.random() * window.innerWidth;
-                const y = Math.random() * window.innerHeight;
-                const size = Math.random() * 3 + 1;
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+
+            for (const p of this.weatherParticles) {
+                // Update position with sway
+                p.y += p.speed;
+                p.x += Math.sin(p.y * 0.01) * 0.5;
+
+                if (p.y > window.innerHeight) {
+                    p.y = -10;
+                    p.x = Math.random() * window.innerWidth;
+                }
+
+                // Draw snowflake
                 this.ctx.beginPath();
-                this.ctx.arc(x, y, size, 0, Math.PI * 2);
+                this.ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
                 this.ctx.fill();
             }
 
@@ -223,6 +258,20 @@ export class Renderer {
         }
 
         this.ctx.restore();
+    }
+
+    private generateWeatherParticles(type: EventType): void {
+        this.weatherParticles = [];
+        const count = type === EventType.RAIN ? 150 : 80;
+
+        for (let i = 0; i < count; i++) {
+            this.weatherParticles.push({
+                x: Math.random() * window.innerWidth,
+                y: Math.random() * window.innerHeight,
+                speed: type === EventType.RAIN ? 8 + Math.random() * 4 : 1 + Math.random() * 2,
+                size: type === EventType.SNOW ? Math.random() * 3 + 1 : 1
+            });
+        }
     }
 
     private drawGrid(map: MapManager, selectedSpawn: { x: number, y: number } | null | undefined, time: number, isNight: boolean) {
@@ -636,6 +685,26 @@ export class Renderer {
             this.drawEnhancedTrack(px, py, bitmask);
         }
 
+        this.ctx.restore();
+    }
+
+    private drawHoverTile(x: number, y: number, map: MapManager): void {
+        const ts = this.tileSize;
+        const px = x * ts;
+        const py = y * ts;
+
+        const tile = map.getTile(x, y);
+        const canBuild = tile && tile.trackType === 'none';
+
+        this.ctx.save();
+        this.ctx.strokeStyle = canBuild ? 'rgba(82, 196, 26, 0.8)' : 'rgba(255, 77, 79, 0.8)';
+        this.ctx.lineWidth = 3;
+        this.ctx.strokeRect(px + 2, py + 2, ts - 4, ts - 4);
+
+        // Add inner glow
+        this.ctx.strokeStyle = canBuild ? 'rgba(82, 196, 26, 0.3)' : 'rgba(255, 77, 79, 0.3)';
+        this.ctx.lineWidth = 6;
+        this.ctx.strokeRect(px + 2, py + 2, ts - 4, ts - 4);
         this.ctx.restore();
     }
 
