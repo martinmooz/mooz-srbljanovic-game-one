@@ -1,6 +1,6 @@
 import { MapManager } from '../core/MapManager';
-import { TrainActor, TrainTypeManager } from '../core/TrainActor';
-import { CargoTypeManager } from '../core/CargoType';
+import { TrainActor, TrainTypeManager, TrainType } from '../core/TrainActor';
+import { CargoTypeManager, CargoType } from '../core/CargoType';
 import { NotificationManager } from './NotificationManager';
 import { ParticleManager } from './ParticleManager';
 import { Camera } from './Camera';
@@ -16,7 +16,7 @@ export class Renderer {
 
     constructor(canvas: HTMLCanvasElement) {
         this.canvas = canvas;
-        const context = canvas.getContext('2d');
+        const context = canvas.getContext('2d', { alpha: false }); // Optimize for no transparency on canvas itself
         if (!context) throw new Error('Could not get 2D context');
         this.ctx = context;
         this.resizeCanvas();
@@ -70,6 +70,23 @@ export class Renderer {
 
             const isNight = lightLevel < 0.5;
 
+            // Calculate Shadow Params for Trains (Duplicate of drawGrid logic for now)
+            let shadowX = 0;
+            let shadowY = 0;
+            let shadowAlpha = 0;
+
+            if (!isNight) {
+                const dayProgress = (timeOfDay - 0.2) / 0.6;
+                shadowX = (dayProgress - 0.5) * 30;
+                shadowY = Math.abs(dayProgress - 0.5) * 10 + 2;
+                const distFromNoon = Math.abs(dayProgress - 0.5);
+                shadowAlpha = 0.4 - (distFromNoon * 0.4);
+            } else {
+                shadowX = 5;
+                shadowY = 5;
+                shadowAlpha = 0.2;
+            }
+
             // Draw Background
             this.drawBackgroundGrid(camera, timeOfDay);
 
@@ -96,7 +113,7 @@ export class Renderer {
                     this.drawHoverTile(hoverTile.x, hoverTile.y, map);
                 }
 
-                this.drawTrains(trains, isNight);
+                this.drawTrains(trains, isNight, shadowX, shadowY, shadowAlpha);
                 this.drawNotifications(notifications);
                 particles.render(this.ctx, this.tileSize, 0, 0);
             } finally {
@@ -119,12 +136,12 @@ export class Renderer {
 
     private generateStars() {
         this.stars = [];
-        const starCount = 100;
+        const starCount = 150;
         for (let i = 0; i < starCount; i++) {
             this.stars.push({
                 x: Math.random() * window.innerWidth,
                 y: Math.random() * window.innerHeight,
-                size: Math.random() * 2,
+                size: Math.random() * 2.5,
                 alpha: Math.random()
             });
         }
@@ -185,7 +202,7 @@ export class Renderer {
 
         if (timeOfDay < 0.15) { // Deep Night (0-0.15 = 3.6 hours)
             color = '#000033';
-            opacity = 0.6;
+            opacity = 0.5;
         } else if (timeOfDay < 0.25) { // Dawn (0.15-0.25 = 2.4 hours)
             // Transition from dark blue to orange
             const progress = (timeOfDay - 0.15) / 0.1;
@@ -193,7 +210,7 @@ export class Renderer {
             const g = Math.floor(0 + progress * 140);
             const b = Math.floor(51 - progress * 51);
             color = `rgb(${r}, ${g}, ${b})`;
-            opacity = 0.6 * (1 - progress) + 0.3 * progress;
+            opacity = 0.5 * (1 - progress) + 0.2 * progress;
         } else if (timeOfDay < 0.7) { // Day (0.25-0.7 = 10.8 hours)
             opacity = 0;
         } else if (timeOfDay < 0.8) { // Dusk (0.7-0.8 = 2.4 hours)
@@ -203,11 +220,11 @@ export class Renderer {
             const g = Math.floor(140 * (1 - progress * 0.5));
             const b = Math.floor(100 * progress);
             color = `rgb(${r}, ${g}, ${b})`;
-            opacity = 0.4 * progress;
+            opacity = 0.3 * progress;
         } else { // Night (0.8-1.0 = 4.8 hours)
             const progress = (timeOfDay - 0.8) / 0.2;
             color = '#000033';
-            opacity = 0.6 * progress;
+            opacity = 0.5 * progress;
         }
 
         // Render overlay
@@ -301,6 +318,33 @@ export class Renderer {
     }
 
     private drawGrid(map: MapManager, selectedSpawn: { x: number, y: number } | null | undefined, time: number, isNight: boolean) {
+        // Calculate shadow offset based on time
+        // Sun moves from East (0.2) to West (0.8)
+        // Shadows move West to East? No, opposite to sun.
+        // 0.2 (Dawn) -> Sun East -> Shadow West (Negative X)
+        // 0.5 (Noon) -> Sun Overhead -> Shadow Short
+        // 0.8 (Dusk) -> Sun West -> Shadow East (Positive X)
+
+        let shadowX = 0;
+        let shadowY = 0;
+        let shadowAlpha = 0;
+
+        if (!isNight) {
+            // Day time (0.2 to 0.8)
+            const dayProgress = (time - 0.2) / 0.6; // 0.0 to 1.0
+            shadowX = (dayProgress - 0.5) * 30; // -15 to +15 pixels
+            shadowY = Math.abs(dayProgress - 0.5) * 10 + 2; // Longer at dawn/dusk
+
+            // Fade shadows at extreme angles
+            const distFromNoon = Math.abs(dayProgress - 0.5);
+            shadowAlpha = 0.4 - (distFromNoon * 0.4); // 0.4 at noon, 0.2 at edges
+        } else {
+            // Night time - Moon shadows? (Subtle)
+            shadowX = 5;
+            shadowY = 5;
+            shadowAlpha = 0.2;
+        }
+
         // Draw Terrain First
         for (let y = 0; y < map.getHeight(); y++) {
             for (let x = 0; x < map.getWidth(); x++) {
@@ -308,7 +352,7 @@ export class Renderer {
                 if (!tile) continue;
                 const px = x * this.tileSize;
                 const py = y * this.tileSize;
-                this.drawTerrain(px, py, tile.terrainType, time, x, y);
+                this.drawTerrain(px, py, tile.terrainType, time, x, y, shadowX, shadowY, shadowAlpha);
             }
         }
 
@@ -324,13 +368,13 @@ export class Renderer {
                     this.drawEnhancedTrack(px, py, tile.bitmaskValue);
                 } else if (tile.trackType === 'station') {
                     const isSpawn = selectedSpawn && selectedSpawn.x === x && selectedSpawn.y === y;
-                    this.drawEnhancedStation(px, py, tile.stationType, isSpawn || false, isNight);
+                    this.drawEnhancedStation(px, py, tile.stationType, isSpawn || false, isNight, shadowX, shadowY, shadowAlpha);
                 }
             }
         }
     }
 
-    private drawTerrain(x: number, y: number, type: string | undefined, time: number, gridX: number, gridY: number): void {
+    private drawTerrain(x: number, y: number, type: string | undefined, time: number, gridX: number, gridY: number, sx: number, sy: number, sa: number): void {
         const ts = this.tileSize;
 
         // Base Terrain
@@ -338,33 +382,33 @@ export class Renderer {
             case 'WATER':
                 this.ctx.fillStyle = '#29B6F6'; // Lighter blue
                 this.ctx.fillRect(x, y, ts, ts);
-                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time);
+                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time, sx, sy, sa);
                 break;
             case 'FOREST':
                 this.ctx.fillStyle = '#388E3C'; // Darker green
                 this.ctx.fillRect(x, y, ts, ts);
-                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time);
+                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time, sx, sy, sa);
                 break;
             case 'MOUNTAIN':
                 this.ctx.fillStyle = '#9E9E9E'; // Grey
                 this.ctx.fillRect(x, y, ts, ts);
-                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time);
+                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time, sx, sy, sa);
                 break;
             case 'DESERT':
                 this.ctx.fillStyle = '#E6C288'; // Sand
                 this.ctx.fillRect(x, y, ts, ts);
-                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time);
+                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time, sx, sy, sa);
                 break;
             case 'SNOW':
                 this.ctx.fillStyle = '#F0F8FF'; // AliceBlue
                 this.ctx.fillRect(x, y, ts, ts);
-                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time);
+                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time, sx, sy, sa);
                 break;
             case 'GRASS':
             default:
                 this.ctx.fillStyle = '#8BC34A'; // Lighter green
                 this.ctx.fillRect(x, y, ts, ts);
-                this.drawTerrainDetails(x, y, ts, gridX, gridY, 'GRASS', time);
+                this.drawTerrainDetails(x, y, ts, gridX, gridY, 'GRASS', time, sx, sy, sa);
                 break;
         }
 
@@ -383,31 +427,54 @@ export class Renderer {
         return s / m;
     }
 
-    private drawTerrainDetails(x: number, y: number, ts: number, gridX: number, gridY: number, type: string, time: number): void {
+    private drawTerrainDetails(x: number, y: number, ts: number, gridX: number, gridY: number, type: string, time: number, sx: number, sy: number, sa: number): void {
         const ctx = this.ctx;
         const rand = (seed: number) => this.deterministicRandom(gridX, gridY, seed);
 
         switch (type) {
             case 'WATER':
-                // Waves
-                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
-                ctx.lineWidth = 1;
-                const offset = Math.sin(time * 2 + gridX + gridY) * 3;
+                // Waves - Animated
+                ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+                ctx.lineWidth = 1.5;
+                const waveOffset = Math.sin(time * 5 + gridX * 0.5 + gridY * 0.5) * 2;
+
                 ctx.beginPath();
-                ctx.moveTo(x + 5, y + ts / 2 + offset);
-                ctx.lineTo(x + ts - 5, y + ts / 2 + offset);
+                ctx.moveTo(x + 4, y + ts / 2 + waveOffset);
+                ctx.quadraticCurveTo(x + ts / 2, y + ts / 2 + waveOffset - 4, x + ts - 4, y + ts / 2 + waveOffset);
+                ctx.stroke();
+
+                // Second wave line
+                ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+                ctx.beginPath();
+                ctx.moveTo(x + 8, y + ts / 2 + waveOffset + 6);
+                ctx.quadraticCurveTo(x + ts / 2, y + ts / 2 + waveOffset + 2, x + ts - 8, y + ts / 2 + waveOffset + 6);
                 ctx.stroke();
                 break;
             case 'FOREST':
-                // Trees
+                // Trees with shadows
                 const treeCount = 3 + Math.floor(rand(0) * 3);
                 for (let i = 0; i < treeCount; i++) {
                     const tx = x + 5 + rand(i + 1) * (ts - 10);
                     const ty = y + 5 + rand(i + 10) * (ts - 10);
+
+                    // Shadow
+                    ctx.fillStyle = `rgba(0,0,0,${sa})`;
+                    ctx.beginPath();
+                    ctx.ellipse(tx + 5 + sx * 0.5, ty + 10 + sy * 0.5, 4, 2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
                     this.drawTree(tx, ty, '#1B5E20');
                 }
                 break;
             case 'MOUNTAIN':
+                // Shadow
+                ctx.fillStyle = `rgba(0,0,0,${sa})`;
+                ctx.beginPath();
+                ctx.moveTo(x + 5 + sx, y + ts - 5 + sy);
+                ctx.lineTo(x + ts / 2 + sx, y + 5 + sy);
+                ctx.lineTo(x + ts - 5 + sx, y + ts - 5 + sy);
+                ctx.fill();
+
                 // Rock texture
                 ctx.fillStyle = '#757575';
                 ctx.beginPath();
@@ -428,6 +495,13 @@ export class Renderer {
                 if (rand(100) > 0.8) {
                     const cx = x + rand(10) * (ts - 4);
                     const cy = y + rand(20) * (ts - 8);
+
+                    // Shadow
+                    ctx.fillStyle = `rgba(0,0,0,${sa})`;
+                    ctx.beginPath();
+                    ctx.ellipse(cx + 3 + sx * 0.3, cy + 8 + sy * 0.3, 3, 1.5, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
                     ctx.fillStyle = '#2E7D32';
                     ctx.fillRect(cx + 2, cy, 2, 8); // Stem
                     ctx.fillRect(cx, cy + 2, 6, 2); // Arms
@@ -439,6 +513,13 @@ export class Renderer {
                 if (rand(200) > 0.7) {
                     const tx = x + rand(30) * (ts - 10);
                     const ty = y + rand(40) * (ts - 10);
+
+                    // Shadow
+                    ctx.fillStyle = `rgba(0,0,0,${sa * 0.5})`; // Lighter shadow on snow
+                    ctx.beginPath();
+                    ctx.ellipse(tx + 5 + sx * 0.5, ty + 10 + sy * 0.5, 4, 2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
                     this.drawTree(tx, ty, '#2c3e50'); // Darker pine
                     // Snow cap on tree
                     ctx.fillStyle = '#FFF';
@@ -489,8 +570,6 @@ export class Renderer {
             this.ctx.fillRect(x + Math.random() * ts, y + Math.random() * ts, 2, 2);
         }
 
-        // Reuse existing track logic but with ballast background
-        // ... (Keep existing track drawing logic, but maybe refine colors)
         const ctx = this.ctx;
         const N = !!(bitmask & 1);
         const E = !!(bitmask & 2);
@@ -596,7 +675,7 @@ export class Renderer {
         ctx.restore();
     }
 
-    private drawEnhancedStation(x: number, y: number, type: string | undefined, isSpawn: boolean, isNight: boolean): void {
+    private drawEnhancedStation(x: number, y: number, type: string | undefined, isSpawn: boolean, isNight: boolean, sx: number, sy: number, sa: number): void {
         const ts = this.tileSize;
 
         let baseColor = '#6B8E23';
@@ -619,6 +698,10 @@ export class Renderer {
         platformGradient.addColorStop(1, '#2c3e50');
         this.ctx.fillStyle = platformGradient;
         this.ctx.fillRect(x, y, ts, ts);
+
+        // Shadow for Building
+        this.ctx.fillStyle = `rgba(0,0,0,${sa})`;
+        this.ctx.fillRect(x + 6 + sx, y + 6 + sy, ts - 12, ts - 12);
 
         // Building
         this.ctx.fillStyle = buildingColor;
@@ -686,7 +769,7 @@ export class Renderer {
         }
     }
 
-    private drawTrains(trains: TrainActor[], isNight: boolean) {
+    private drawTrains(trains: TrainActor[], isNight: boolean, sx: number, sy: number, sa: number) {
         for (const train of trains) {
             const trainInfo = TrainTypeManager.getTrainInfo(train.trainType);
             const cargoInfo = CargoTypeManager.getCargoInfo(train.cargoType);
@@ -699,14 +782,68 @@ export class Renderer {
 
             if (visualPos.direction !== null) {
                 this.ctx.translate(px, py);
-                const rotation = visualPos.direction * (Math.PI / 2);
+                const rotation = (visualPos.direction - 1) * (Math.PI / 2);
                 this.ctx.rotate(rotation);
                 this.ctx.translate(-px, -py);
             }
 
+            // Number of wagons (3-4 depending on train type)
+            const wagonCount = train.trainType === TrainType.HEAVY ? 4 : 3;
+
+            // Draw wagons from back to front (so locomotive is on top)
+            // Use the train's history to position wagons along the actual path
+            for (let i = wagonCount - 1; i >= 0; i--) {
+                const wagonPos = train.getWagonPosition(i);
+
+                if (wagonPos) {
+                    // Convert wagon position to screen coordinates
+                    const wagonPx = wagonPos.x * this.tileSize + this.tileSize / 2;
+                    const wagonPy = wagonPos.y * this.tileSize + this.tileSize / 2;
+
+                    // Save current transformation state
+                    this.ctx.save();
+
+                    // Apply rotation based on wagon's direction
+                    if (wagonPos.direction !== null) {
+                        this.ctx.translate(wagonPx, wagonPy);
+                        const rotation = (wagonPos.direction - 1) * (Math.PI / 2);
+                        this.ctx.rotate(rotation);
+                        this.ctx.translate(-wagonPx, -wagonPy);
+                    }
+
+                    // Draw wagon shadow
+                    this.ctx.fillStyle = `rgba(0,0,0,${sa})`;
+                    this.ctx.fillRect(wagonPx - 8 + sx, wagonPy - 6 + sy, 16, 12);
+
+                    // Draw wagon based on cargo type
+                    this.drawWagon(wagonPx, wagonPy, train.cargoType, cargoInfo.color);
+
+                    // Draw connector to next wagon (or locomotive if this is the first wagon)
+                    if (i < wagonCount - 1 || i === 0) {
+                        this.ctx.fillStyle = '#000';
+                        this.ctx.fillRect(wagonPx + 8, wagonPy - 1, 4, 2);
+                    }
+
+                    this.ctx.restore();
+                }
+            }
+
+            // Restore the main transformation for the locomotive
+            this.ctx.restore();
+            this.ctx.save();
+
+            // Re-apply locomotive transformation
+            if (visualPos.direction !== null) {
+                this.ctx.translate(px, py);
+                const rotation = (visualPos.direction - 1) * (Math.PI / 2);
+                this.ctx.rotate(rotation);
+                this.ctx.translate(-px, -py);
+            }
+
+            // Draw locomotive
             // Train Shadow
-            this.ctx.fillStyle = 'rgba(0,0,0,0.3)';
-            this.ctx.fillRect(px - 12, py - 6, 20, 16);
+            this.ctx.fillStyle = `rgba(0,0,0,${sa})`;
+            this.ctx.fillRect(px - 12 + sx, py - 6 + sy, 20, 16);
 
             // Engine Body
             this.ctx.fillStyle = trainInfo.color;
@@ -736,22 +873,111 @@ export class Renderer {
                 this.ctx.lineTo(60, 20);
                 this.ctx.fillStyle = 'rgba(255, 255, 200, 0.4)';
                 this.ctx.fill();
+
+                // Bloom effect for headlight
+                this.ctx.shadowColor = '#FFFFE0';
+                this.ctx.shadowBlur = 20;
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, 5, 0, Math.PI * 2);
+                this.ctx.fillStyle = '#FFFFE0';
+                this.ctx.fill();
                 this.ctx.restore();
             }
 
-            // Cargo
-            this.ctx.fillStyle = cargoInfo.color;
-            this.ctx.fillRect(px - 28, py - 7, 12, 14);
-            this.ctx.strokeStyle = '#2c3e50';
-            this.ctx.lineWidth = 1;
-            this.ctx.strokeRect(px - 28, py - 7, 12, 14);
-
-            // Connector
+            // Connector between locomotive and first wagon
             this.ctx.fillStyle = '#000';
             this.ctx.fillRect(px - 16, py - 1, 4, 2);
 
             this.ctx.restore();
         }
+    }
+
+    private drawWagon(x: number, y: number, cargoType: CargoType, cargoColor: string): void {
+        const ctx = this.ctx;
+
+        switch (cargoType) {
+            case CargoType.PASSENGERS:
+                // Passenger car - windowed
+                ctx.fillStyle = '#8B4513'; // Brown
+                ctx.fillRect(x - 8, y - 6, 16, 12);
+
+                // Windows
+                ctx.fillStyle = '#87CEEB'; // Sky blue
+                ctx.fillRect(x - 6, y - 4, 3, 4);
+                ctx.fillRect(x - 1, y - 4, 3, 4);
+                ctx.fillRect(x + 4, y - 4, 3, 4);
+
+                // Roof
+                ctx.fillStyle = '#654321';
+                ctx.fillRect(x - 8, y - 7, 16, 2);
+                break;
+
+            case CargoType.OIL:
+                // Tank car - cylindrical
+                ctx.fillStyle = '#2F4F4F'; // Dark slate gray
+                ctx.beginPath();
+                ctx.ellipse(x, y, 8, 6, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Tank bands
+                ctx.strokeStyle = '#1C1C1C';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(x - 4, y - 6);
+                ctx.lineTo(x - 4, y + 6);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x + 4, y - 6);
+                ctx.lineTo(x + 4, y + 6);
+                ctx.stroke();
+                break;
+
+            case CargoType.WOOD:
+            case CargoType.LUMBER:
+                // Flatbed car with lumber
+                ctx.fillStyle = '#654321'; // Dark brown platform
+                ctx.fillRect(x - 8, y + 2, 16, 4);
+
+                // Lumber stack
+                ctx.fillStyle = '#8B4513';
+                ctx.fillRect(x - 6, y - 4, 12, 6);
+
+                // Wood grain lines
+                ctx.strokeStyle = '#654321';
+                ctx.lineWidth = 1;
+                for (let i = 0; i < 3; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(x - 6 + i * 4, y - 4);
+                    ctx.lineTo(x - 6 + i * 4, y + 2);
+                    ctx.stroke();
+                }
+                break;
+
+            default:
+                // Box car for general cargo (COAL, IRON_ORE, STEEL, TOOLS, GOODS, GOLD)
+                ctx.fillStyle = cargoColor;
+                ctx.fillRect(x - 8, y - 6, 16, 12);
+
+                // Door
+                ctx.strokeStyle = '#2c3e50';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x + 1, y - 4, 6, 10);
+
+                // Border
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(x - 8, y - 6, 16, 12);
+                break;
+        }
+
+        // Wheels (common to all wagon types)
+        ctx.fillStyle = '#2c3e50';
+        ctx.beginPath();
+        ctx.arc(x - 5, y + 6, 2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x + 5, y + 6, 2, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     private drawNotifications(notifications: NotificationManager) {
@@ -811,85 +1037,66 @@ export class Renderer {
         this.ctx.restore();
     }
 
-    private drawHoverTile(x: number, y: number, map: MapManager): void {
-        const ts = this.tileSize;
-        const px = x * ts;
-        const py = y * ts;
-
-        const tile = map.getTile(x, y);
-        const canBuild = tile && tile.trackType === 'none';
+    public drawHoverTile(x: number, y: number, map: MapManager): void {
+        const px = x * this.tileSize;
+        const py = y * this.tileSize;
 
         this.ctx.save();
-        this.ctx.strokeStyle = canBuild ? 'rgba(82, 196, 26, 0.8)' : 'rgba(255, 77, 79, 0.8)';
-        this.ctx.lineWidth = 3;
-        this.ctx.strokeRect(px + 2, py + 2, ts - 4, ts - 4);
+        this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        this.ctx.lineWidth = 2;
+        this.ctx.strokeRect(px, py, this.tileSize, this.tileSize);
+        this.ctx.restore();
+    }
 
-        // Add inner glow
-        this.ctx.strokeStyle = canBuild ? 'rgba(82, 196, 26, 0.3)' : 'rgba(255, 77, 79, 0.3)';
-        this.ctx.lineWidth = 6;
-        this.ctx.strokeRect(px + 2, py + 2, ts - 4, ts - 4);
+    public drawRoute(route: Route): void {
+        if (route.stops.length === 0) return;
+
+        this.ctx.save();
+        this.ctx.strokeStyle = route.color;
+        this.ctx.lineWidth = 3;
+        this.ctx.setLineDash([5, 5]);
+        this.ctx.globalAlpha = 0.7;
+
+        this.ctx.beginPath();
+        const start = route.stops[0];
+        this.ctx.moveTo(start.x * this.tileSize + this.tileSize / 2, start.y * this.tileSize + this.tileSize / 2);
+
+        for (let i = 1; i < route.stops.length; i++) {
+            const stop = route.stops[i];
+            this.ctx.lineTo(stop.x * this.tileSize + this.tileSize / 2, stop.y * this.tileSize + this.tileSize / 2);
+        }
+        this.ctx.stroke();
+
+        // Draw stop indicators
+        for (let i = 0; i < route.stops.length; i++) {
+            const stop = route.stops[i];
+            const px = stop.x * this.tileSize + this.tileSize / 2;
+            const py = stop.y * this.tileSize + this.tileSize / 2;
+
+            this.ctx.fillStyle = route.color;
+            this.ctx.beginPath();
+            this.ctx.arc(px, py, 6, 0, Math.PI * 2);
+            this.ctx.fill();
+            this.ctx.fillStyle = 'white';
+            this.ctx.font = 'bold 10px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+            this.ctx.fillText((i + 1).toString(), px, py);
+        }
+
         this.ctx.restore();
     }
 
     public getTileFromScreen(screenX: number, screenY: number, camera: Camera): { x: number, y: number } {
         const cx = window.innerWidth / 2;
         const cy = window.innerHeight / 2;
+
         const worldX = (screenX - cx) / camera.zoom + cx + camera.x;
         const worldY = (screenY - cy) / camera.zoom + cy + camera.y;
-        const tx = Math.floor(worldX / this.tileSize);
-        const ty = Math.floor(worldY / this.tileSize);
-        return { x: tx, y: ty };
-    }
 
-    private drawRoute(route: Route): void {
-        const ts = this.tileSize;
+        const tileX = Math.floor(worldX / this.tileSize);
+        const tileY = Math.floor(worldY / this.tileSize);
 
-        this.ctx.save();
-
-        // Draw lines connecting stops
-        if (route.stops.length > 1) {
-            this.ctx.beginPath();
-            this.ctx.strokeStyle = route.color;
-            this.ctx.lineWidth = 3;
-            this.ctx.setLineDash([10, 10]);
-            this.ctx.globalAlpha = 0.6;
-
-            const first = route.stops[0];
-            this.ctx.moveTo(first.x * ts + ts / 2, first.y * ts + ts / 2);
-
-            for (let i = 1; i < route.stops.length; i++) {
-                const stop = route.stops[i];
-                this.ctx.lineTo(stop.x * ts + ts / 2, stop.y * ts + ts / 2);
-            }
-
-            // Loop back to start
-            this.ctx.lineTo(first.x * ts + ts / 2, first.y * ts + ts / 2);
-
-            this.ctx.stroke();
-        }
-
-        // Draw stop numbers
-        this.ctx.globalAlpha = 1.0;
-        this.ctx.setLineDash([]);
-        this.ctx.font = 'bold 14px Arial';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
-
-        route.stops.forEach((stop, index) => {
-            const x = stop.x * ts + ts / 2;
-            const y = stop.y * ts + ts / 2;
-
-            // Circle background
-            this.ctx.fillStyle = route.color;
-            this.ctx.beginPath();
-            this.ctx.arc(x, y - 25, 12, 0, Math.PI * 2);
-            this.ctx.fill();
-
-            // Number
-            this.ctx.fillStyle = '#FFFFFF';
-            this.ctx.fillText((index + 1).toString(), x, y - 25);
-        });
-
-        this.ctx.restore();
+        return { x: tileX, y: tileY };
     }
 }

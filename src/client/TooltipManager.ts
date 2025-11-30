@@ -1,6 +1,7 @@
 import { TrainActor, TrainTypeManager } from '../core/TrainActor';
 import { CargoTypeManager } from '../core/CargoType';
 import { MapManager } from '../core/MapManager';
+import { ITileData } from '../core/ITileData';
 
 export interface TooltipData {
     text: string[];
@@ -46,12 +47,27 @@ export class TooltipManager {
         this.show(lines, screenX, screenY);
     }
 
-    public showStationTooltip(x: number, y: number, screenX: number, screenY: number): void {
+    public showStationTooltip(tile: ITileData, screenX: number, screenY: number): void {
         const lines = [
-            `🏭 Station`,
-            `📍 Location: (${x}, ${y})`,
-            `💰 Delivery point`
+            `🏭 ${tile.stationType?.replace('_', ' ') || 'Station'}`,
+            `📍 Location: (${tile.x}, ${tile.y})`
         ];
+
+        if (tile.produces && tile.produces.length > 0) {
+            lines.push(`📤 Produces: ${tile.produces.join(', ')}`);
+        }
+        if (tile.accepts && tile.accepts.length > 0) {
+            lines.push(`📥 Accepts: ${tile.accepts.join(', ')}`);
+        }
+
+        if (tile.storage) {
+            lines.push('--- Storage ---');
+            for (const [cargo, amount] of Object.entries(tile.storage)) {
+                if (amount > 0) {
+                    lines.push(`📦 ${cargo}: ${Math.floor(amount)}`);
+                }
+            }
+        }
 
         this.show(lines, screenX, screenY);
     }

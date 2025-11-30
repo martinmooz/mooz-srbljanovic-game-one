@@ -62,6 +62,7 @@ interface SaveData {
 
 export class SaveManager {
     private static SAVE_KEY = 'railsim_save';
+    private static MAP_KEY_PREFIX = 'railsim_map_';
     private static VERSION = 3; // Bump version
 
     public static save(
@@ -166,5 +167,44 @@ export class SaveManager {
             }
         }
         return tiles;
+    }
+    // --- Map Editor Saving ---
+
+    // --- Map Editor Saving ---
+
+    public static saveMap(map: MapManager, name: string): void {
+        const mapData = {
+            width: map.getWidth(),
+            height: map.getHeight(),
+            tiles: this.serializeMap(map)
+        };
+        try {
+            localStorage.setItem(this.MAP_KEY_PREFIX + name, JSON.stringify(mapData));
+            console.log(`Map '${name}' saved successfully`);
+        } catch (e) {
+            console.error('Failed to save map:', e);
+        }
+    }
+
+    public static loadMap(name: string): any | null {
+        try {
+            const data = localStorage.getItem(this.MAP_KEY_PREFIX + name);
+            if (!data) return null;
+            return JSON.parse(data);
+        } catch (e) {
+            console.error('Failed to load map:', e);
+            return null;
+        }
+    }
+
+    public static getSavedMaps(): string[] {
+        const maps: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(this.MAP_KEY_PREFIX)) {
+                maps.push(key.substring(this.MAP_KEY_PREFIX.length));
+            }
+        }
+        return maps;
     }
 }

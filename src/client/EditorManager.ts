@@ -1,5 +1,6 @@
 import { MapManager } from '../core/MapManager';
 import { Game } from './Game';
+import { SaveManager } from '../core/SaveManager';
 
 export enum EditorTool {
     TERRAIN = 'terrain',
@@ -104,9 +105,31 @@ export class EditorManager {
             this.game.menuManager.setState('main_menu' as any); // Go back to main menu
         });
 
-        document.getElementById('editor-save')?.addEventListener('click', () => {
-            this.game.saveGame();
-            alert('Map Saved!');
+        document.getElementById('editor-save-map')?.addEventListener('click', () => {
+            const nameInput = document.getElementById('editor-map-name') as HTMLInputElement;
+            const name = nameInput ? nameInput.value : 'MyMap';
+            if (!name) {
+                alert('Please enter a map name');
+                return;
+            }
+            SaveManager.saveMap(this.game.map, name);
+            alert(`Map '${name}' Saved!`);
+        });
+
+        document.getElementById('editor-load-map')?.addEventListener('click', () => {
+            const nameInput = document.getElementById('editor-map-name') as HTMLInputElement;
+            const name = nameInput ? nameInput.value : 'MyMap';
+            if (!name) {
+                alert('Please enter a map name');
+                return;
+            }
+            const mapData = SaveManager.loadMap(name);
+            if (mapData) {
+                this.game.map.loadMapData(mapData);
+                alert(`Map '${name}' Loaded!`);
+            } else {
+                alert(`Map '${name}' not found!`);
+            }
         });
     }
 

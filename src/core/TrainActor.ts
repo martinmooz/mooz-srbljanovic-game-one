@@ -23,7 +23,7 @@ export class TrainTypeManager {
         [TrainType.NORMAL]: {
             type: TrainType.NORMAL,
             speed: 2.0,
-            cost: 100,
+            cost: 150, // Increased from 100
             name: 'Normal',
             color: '#FF0000',
             unlockLevel: 1
@@ -31,7 +31,7 @@ export class TrainTypeManager {
         [TrainType.FAST]: {
             type: TrainType.FAST,
             speed: 4.0,
-            cost: 200,
+            cost: 300, // Increased from 200
             name: 'Fast',
             color: '#00FF00',
             unlockLevel: 2
@@ -39,7 +39,7 @@ export class TrainTypeManager {
         [TrainType.HEAVY]: {
             type: TrainType.HEAVY,
             speed: 1.5,
-            cost: 150,
+            cost: 225, // Increased from 150
             name: 'Heavy',
             color: '#0000FF',
             unlockLevel: 3
@@ -47,7 +47,7 @@ export class TrainTypeManager {
         [TrainType.EXPRESS]: {
             type: TrainType.EXPRESS,
             speed: 6.0,
-            cost: 400,
+            cost: 600, // Increased from 400
             name: 'Express',
             color: '#00FFFF',
             unlockLevel: 5

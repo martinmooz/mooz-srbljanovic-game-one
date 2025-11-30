@@ -10,4 +10,6 @@ export interface ITileData {
     terrainType?: 'GRASS' | 'WATER' | 'FOREST' | 'MOUNTAIN' | 'DESERT' | 'SNOW';
     produces?: string[]; // Cargo types this station sells
     accepts?: string[]; // Cargo types this station buys
+    storage?: Record<string, number>; // CargoType -> Amount
+    lastProduction?: number; // Timestamp for production cycles
 }

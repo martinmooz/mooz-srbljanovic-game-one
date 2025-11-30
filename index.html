@@ -22,7 +22,8 @@
                 <div class="stat-row">
                     <span class="stat-label">Level</span>
                     <span class="stat-value"><span id="level-display">1</span> <span
-                            style="font-size:0.8em; color:#888;">(<span id="xp-display">0</span> XP)</span></span>
+                            style="font-size:0.8em; color:var(--text-secondary);">(<span id="xp-display">0</span>
+                            XP)</span></span>
                 </div>
                 <div class="stat-row">
                     <span class="stat-label">Trains</span>
@@ -30,7 +31,8 @@
                 </div>
 
                 <div style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 8px;">
-                    <div style="cursor: pointer; font-size: 12px; color: #4facfe;" id="stats-toggle">
+                    <div style="cursor: pointer; font-size: 12px; color: var(--accent-color); font-weight: 600;"
+                        id="stats-toggle">
                         Show Detailed Stats ▼
                     </div>
                     <div id="stats-panel" style="display: none; margin-top: 8px;">
@@ -45,7 +47,8 @@
 
                         <!-- Revenue Chart -->
                         <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">
-                            <div style="font-size: 10px; color: #aaa; margin-bottom: 4px;">Revenue History</div>
+                            <div style="font-size: 10px; color: var(--text-secondary); margin-bottom: 4px;">Revenue
+                                History</div>
                             <canvas id="revenue-chart" width="220" height="80"
                                 style="width: 100%; border-radius: 4px;"></canvas>
                         </div>
@@ -67,19 +70,22 @@
 
             <!-- Top Center: Goal Widget -->
             <div id="goal-container" class="glass-panel"
-                style="grid-column: 2; grid-row: 1; justify-self: center; padding: 10px 20px; display: flex; align-items: center; gap: 10px; height: fit-content; margin-top: 10px;">
-                <div style="font-size: 24px;">🎯</div>
+                style="grid-column: 2; grid-row: 1; justify-self: center; padding: 12px 24px; display: flex; align-items: center; gap: 16px; height: fit-content; margin-top: 10px;">
+                <div style="font-size: 28px;">🎯</div>
                 <div style="display: flex; flex-direction: column;">
-                    <div style="font-size: 10px; color: #aaa; text-transform: uppercase; letter-spacing: 1px;">Current
+                    <div
+                        style="font-size: 10px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                        Current
                         Goal</div>
-                    <div id="current-goal-text" style="font-weight: bold; color: #FFD700;">Expand your railway</div>
+                    <div id="current-goal-text" style="font-weight: 700; color: #FFD700; font-size: 15px;">Expand your
+                        railway</div>
                 </div>
             </div>
         </div>
 
         <!-- Auto-Save Indicator -->
         <div id="auto-save-indicator"
-            style="position: absolute; top: 10px; left: 10px; padding: 6px 12px; background: rgba(0, 0, 0, 0.6); border-radius: 8px; font-size: 12px; color: #51CF66; opacity: 0; transition: opacity 0.3s;">
+            style="position: absolute; top: 10px; left: 10px; padding: 6px 12px; background: rgba(0, 0, 0, 0.6); border-radius: 8px; font-size: 12px; color: var(--success-color); opacity: 0; transition: opacity 0.3s; pointer-events: none;">
             💾 Saving...
         </div>
 
@@ -88,32 +94,32 @@
             style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 30px; max-width: 500px; z-index: 10000;">
             <h2 style="margin: 0 0 20px 0; text-align: center; color: #FFD700;">🎮 CONTROLS</h2>
             <div style="display: grid; grid-template-columns: 120px 1fr; gap: 12px; font-size: 14px;">
-                <div style="font-weight: bold; color: #51CF66;">Drag Mouse</div>
+                <div style="font-weight: bold; color: var(--success-color);">Drag Mouse</div>
                 <div>Build track ($50/tile)</div>
 
-                <div style="font-weight: bold; color: #51CF66;">Q</div>
+                <div style="font-weight: bold; color: var(--success-color);">Q</div>
                 <div>Place station ($200)</div>
 
-                <div style="font-weight: bold; color: #51CF66;">E</div>
+                <div style="font-weight: bold; color: var(--success-color);">E</div>
                 <div>Set spawn station</div>
 
-                <div style="font-weight: bold; color: #51CF66;">Spacebar</div>
+                <div style="font-weight: bold; color: var(--success-color);">Spacebar</div>
                 <div>Buy train (at spawn)</div>
 
-                <div style="font-weight: bold; color: #51CF66;">WASD / Arrows</div>
+                <div style="font-weight: bold; color: var(--success-color);">WASD / Arrows</div>
                 <div>Move camera</div>
 
-                <div style="font-weight: bold; color: #51CF66;">Mouse Wheel</div>
+                <div style="font-weight: bold; color: var(--success-color);">Mouse Wheel</div>
                 <div>Zoom in/out</div>
 
-                <div style="font-weight: bold; color: #51CF66;">ESC</div>
+                <div style="font-weight: bold; color: var(--success-color);">ESC</div>
                 <div>Pause menu</div>
 
-                <div style="font-weight: bold; color: #51CF66;">H</div>
+                <div style="font-weight: bold; color: var(--success-color);">H</div>
                 <div>Toggle this help</div>
             </div>
             <div style="text-align: center; margin-top: 20px; font-size: 12px; color: #888;">
-                <button id="btn-close-help" class="menu-button" style="width: 100px; padding: 5px;">Close</button>
+                <button id="btn-close-help" class="primary" style="width: 100px; padding: 8px;">Close</button>
             </div>
         </div>
 
@@ -122,7 +128,9 @@
             style="grid-column: 3; grid-row: 1; justify-self: end; padding: 10px 15px; display: none; align-items: center; gap: 8px; height: fit-content; margin-top: 10px; margin-right: 10px;">
             <div id="event-icon" style="font-size: 20px;">⚡</div>
             <div style="display: flex; flex-direction: column;">
-                <div style="font-size: 9px; color: #aaa; text-transform: uppercase; letter-spacing: 1px;">Active
+                <div
+                    style="font-size: 9px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1px;">
+                    Active
                     Event</div>
                 <div id="event-name" style="font-weight: bold; color: #FFA500; font-size: 12px;">Gold Rush</div>
             </div>
@@ -130,40 +138,45 @@
 
         <!-- Bottom Center: Build Toolbar -->
         <div id="toolbar-container" class="glass-panel">
-            <div style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
+            <!-- Build Group -->
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <button id="btn-build-track" title="Build Track ($50/tile)" class="active">🚂 Track</button>
+                <button id="btn-place-station" title="Place Station ($500)">🏭 Station</button>
+                <button id="btn-demolish" title="Demolish Track/Station (50% refund)">🔨 Demolish</button>
+                <button id="btn-undo" title="Undo Last Build">↩ Undo</button>
+            </div>
+
+            <div style="width: 1px; height: 40px; background: rgba(255,255,255,0.1);"></div>
+
+            <!-- Train Group -->
+            <div style="display: flex; flex-direction: column; gap: 6px; align-items: center;">
                 <div class="train-selector">
                     <button id="btn-train-normal" class="train-option active" style="color: #FF6B6B;">Normal</button>
                     <button id="btn-train-fast" class="train-option" style="color: #51CF66;">Fast</button>
                     <button id="btn-train-heavy" class="train-option" style="color: #339AF0;">Heavy</button>
                     <button id="btn-train-express" class="train-option" style="color: #00FFFF;">Express</button>
                 </div>
-                <div style="font-size: 10px; color: #aaa;">Selected: <span id="selected-train-type">Normal
-                        ($100)</span></div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="btn-set-spawn" title="Set Spawn Point" style="padding: 4px 8px; font-size: 11px;">🚩 Set
+                        Spawn</button>
+                    <button id="btn-buy-train" class="success" style="padding: 4px 12px;">
+                        <span>💰 Buy Train</span>
+                    </button>
+                </div>
             </div>
 
-            <div style="width: 1px; height: 30px; background: rgba(255,255,255,0.1);"></div>
+            <div style="width: 1px; height: 40px; background: rgba(255,255,255,0.1);"></div>
 
-            <div style="display: flex; flex-direction: column; align-items: center;">
-                <div style="font-size: 10px; color: #aaa; margin-bottom: 2px;">Spawn: <span
-                        id="spawn-station">None</span></div>
-                <button id="btn-buy-train" class="success">
-                    <span>🚂 Buy Train</span>
-                </button>
-            </div>
-
-            <div style="width: 1px; height: 30px; background: rgba(255,255,255,0.1);"></div>
-
-            <div
-                style="font-size: 12px; color: #aaa; text-align: left; display: flex; flex-direction: column; gap: 4px;">
-                <button id="btn-place-station" class="tool-btn" title="Place Station ($200)">🏭 Station ($200)</button>
-                <button id="btn-set-spawn" class="tool-btn" title="Set Spawn Point">🚩 Set Spawn</button>
-                <button id="btn-undo" class="tool-btn" title="Undo Last Build">↩ Undo</button>
+            <!-- Management Toggles -->
+            <div style="display: flex; gap: 8px;">
+                <button id="btn-toggle-market" class="icon-only" title="Market Prices">📊</button>
+                <button id="btn-toggle-routes" class="icon-only" title="Route Manager">🛤️</button>
             </div>
         </div>
 
         <!-- Build Cost Preview -->
         <div id="build-cost-preview" class="glass-panel"
-            style="grid-column: 2; grid-row: 3; justify-self: center; align-self: end; padding: 8px 16px; display: none; margin-bottom: 80px;">
+            style="grid-column: 2; grid-row: 3; justify-self: center; align-self: end; padding: 8px 16px; display: none; margin-bottom: 100px;">
             <div style="font-size: 14px; font-weight: bold;">
                 💰 Cost: <span id="build-cost-amount">$0</span>
             </div>
@@ -171,66 +184,69 @@
 
         <!-- Route Panel (Hidden by default) -->
         <div id="route-panel" class="glass-panel"
-            style="display: none; position: absolute; top: 60px; right: 20px; width: 250px; max-height: 400px; overflow-y: auto;">
+            style="display: none; position: absolute; top: 80px; right: 20px; width: 280px; max-height: 500px; overflow-y: auto; z-index: 100;">
             <div
-                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
-                <span style="font-weight: bold;">🛤️ Routes</span>
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+                <span style="font-weight: bold; font-size: 16px;">🛤️ Routes</span>
                 <button id="btn-close-routes"
-                    style="background: none; border: none; color: #aaa; cursor: pointer;">✕</button>
+                    style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 18px;">✕</button>
             </div>
 
-            <div id="route-list" style="margin-bottom: 10px;">
+            <div id="route-list" style="margin-bottom: 15px;">
                 <!-- Routes will be listed here -->
-                <div style="text-align: center; color: #888; font-size: 12px; padding: 10px;">No routes created</div>
+                <div style="text-align: center; color: var(--text-secondary); font-size: 13px; padding: 15px;">No routes
+                    created</div>
             </div>
 
-            <button id="btn-new-route" class="primary" style="width: 100%; margin-bottom: 10px;">+ New Route</button>
+            <button id="btn-new-route" class="primary" style="width: 100%; margin-bottom: 15px;">+ New Route</button>
 
             <div id="active-route-editor"
-                style="display: none; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
-                <div style="font-size: 12px; color: #aaa; margin-bottom: 5px;">Editing: <span id="editing-route-name"
-                        style="color: white; font-weight: bold;">Route 1</span></div>
-                <div style="font-size: 10px; color: #888; margin-bottom: 5px;">Click stations to add stops</div>
-                <ul id="route-stops-list" style="list-style: none; padding: 0; margin: 0 0 10px 0; font-size: 11px;">
+                style="display: none; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                <div style="font-size: 13px; color: var(--text-secondary); margin-bottom: 8px;">Editing: <span
+                        id="editing-route-name" style="color: white; font-weight: bold;">Route 1</span></div>
+                <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 8px;">Click stations to add
+                    stops</div>
+                <ul id="route-stops-list" style="list-style: none; padding: 0; margin: 0 0 15px 0; font-size: 12px;">
                     <!-- Stops -->
                 </ul>
-                <div style="display: flex; gap: 5px;">
-                    <button id="btn-finish-route" class="success" style="flex: 1; font-size: 11px;">Done</button>
-                    <button id="btn-delete-route" class="danger" style="flex: 1; font-size: 11px;">Delete</button>
+                <div style="display: flex; gap: 8px;">
+                    <button id="btn-finish-route" class="success" style="flex: 1; font-size: 12px;">Done</button>
+                    <button id="btn-delete-route" class="danger" style="flex: 1; font-size: 12px;">Delete</button>
                 </div>
             </div>
         </div>
 
         <!-- Train Details Panel (Hidden by default) -->
         <div id="train-details-panel" class="glass-panel"
-            style="display: none; position: absolute; top: 60px; left: 20px; width: 220px; z-index: 100;">
+            style="display: none; position: absolute; top: 80px; left: 20px; width: 240px; z-index: 100;">
             <div
-                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
-                <span style="font-weight: bold;">🚂 Train Details</span>
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 10px;">
+                <span style="font-weight: bold; font-size: 16px;">🚂 Train Details</span>
                 <button id="btn-close-train-details"
-                    style="background: none; border: none; color: #aaa; cursor: pointer;">✕</button>
+                    style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 18px;">✕</button>
             </div>
 
-            <div style="margin-bottom: 15px;">
-                <div style="font-size: 12px; color: #aaa;">Type</div>
-                <div id="train-details-type" style="font-weight: bold; font-size: 14px;">Normal Train</div>
+            <div style="margin-bottom: 20px;">
+                <div style="font-size: 12px; color: var(--text-secondary);">Type</div>
+                <div id="train-details-type" style="font-weight: bold; font-size: 16px; color: var(--accent-color);">
+                    Normal Train</div>
             </div>
 
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px;">
                 <div>
-                    <div style="font-size: 10px; color: #aaa;">Cargo</div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">Cargo</div>
                     <div id="train-details-cargo" style="font-weight: bold;">None</div>
                 </div>
                 <div>
-                    <div style="font-size: 10px; color: #aaa;">Speed</div>
+                    <div style="font-size: 11px; color: var(--text-secondary);">Speed</div>
                     <div id="train-details-speed" style="font-weight: bold;">1.0</div>
                 </div>
             </div>
 
-            <div style="margin-bottom: 15px;">
-                <div style="font-size: 12px; color: #aaa; margin-bottom: 5px;">Assigned Route</div>
+            <div style="margin-bottom: 20px;">
+                <div style="font-size: 12px; color: var(--text-secondary); margin-bottom: 6px;">Assigned Route</div>
                 <select id="train-route-select"
-                    style="width: 100%; padding: 5px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px;">
+                    style="width: 100%; padding: 8px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 8px; outline: none;">
                     <option value="">None</option>
                 </select>
             </div>
@@ -239,17 +255,9 @@
                     id="train-sell-value">0</span>)</button>
         </div>
 
-        <!-- Route Toggle Button (in Toolbar) -->
-        <div style="position: absolute; bottom: 20px; right: 20px;">
-            <button id="btn-toggle-routes" class="glass-panel"
-                style="padding: 10px; border-radius: 50%; width: 50px; height: 50px; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
-                🛤️
-            </button>
-        </div>
-
         <!-- Camera Controls (D-Pad) -->
         <div id="camera-controls" class="glass-panel"
-            style="position: absolute; bottom: 20px; right: 80px; display: grid; grid-template-columns: 30px 30px 30px; gap: 4px; padding: 8px;">
+            style="position: absolute; bottom: 20px; right: 80px; display: grid; grid-template-columns: 36px 36px 36px; gap: 6px; padding: 10px;">
             <div></div>
             <button id="btn-cam-up" class="icon-only">▲</button>
             <div></div>
@@ -262,18 +270,45 @@
         </div>
     </div>
 
+    <!-- Market Dashboard -->
+    <div id="market-dashboard" class="glass-panel"
+        style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 450px; padding: 24px; z-index: 2000;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+            <h2 style="margin: 0; color: #fff; font-size: 20px;">Global Market</h2>
+            <button id="btn-close-market" class="icon-only"
+                style="width: 32px; height: 32px; font-size: 14px;">✕</button>
+        </div>
+        <div style="max-height: 400px; overflow-y: auto;">
+            <table style="width: 100%; border-collapse: collapse; color: #ddd; font-size: 14px;">
+                <thead>
+                    <tr style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+                        <th style="text-align: left; padding: 12px 8px;">Cargo</th>
+                        <th style="text-align: right; padding: 12px 8px;">Price</th>
+                        <th style="text-align: center; padding: 12px 8px;">Trend</th>
+                    </tr>
+                </thead>
+                <tbody id="market-list">
+                    <!-- Market items will be injected here -->
+                </tbody>
+            </table>
+        </div>
+        <div style="margin-top: 20px; font-size: 12px; color: var(--text-secondary); text-align: center;">
+            Prices update every 10 days based on supply & demand.
+        </div>
+    </div>
+
     <!-- Tooltip -->
     <div id="tooltip"></div>
 
     <!-- Editor UI (Hidden by default) -->
     <div id="editor-ui" class="glass-panel" style="display: none;">
         <div
-            style="margin-bottom: 10px; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
+            style="margin-bottom: 12px; font-weight: bold; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 8px;">
             Map Editor</div>
 
-        <div style="margin-bottom: 10px;">
-            <div style="font-size: 0.8em; color: #aaa;">Terrain</div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+        <div style="margin-bottom: 12px;">
+            <div style="font-size: 0.8em; color: var(--text-secondary); margin-bottom: 4px;">Terrain</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
                 <button id="tool-grass" class="editor-btn">Grass</button>
                 <button id="tool-water" class="editor-btn">Water</button>
                 <button id="tool-forest" class="editor-btn">Forest</button>
@@ -281,9 +316,9 @@
             </div>
         </div>
 
-        <div style="margin-bottom: 10px;">
-            <div style="font-size: 0.8em; color: #aaa;">Stations</div>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px;">
+        <div style="margin-bottom: 12px;">
+            <div style="font-size: 0.8em; color: var(--text-secondary); margin-bottom: 4px;">Stations</div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 6px;">
                 <button id="tool-city" class="editor-btn">City</button>
                 <button id="tool-coal" class="editor-btn">Coal</button>
                 <button id="tool-iron" class="editor-btn">Iron</button>
@@ -294,13 +329,22 @@
             </div>
         </div>
 
-        <div style="margin-bottom: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+        <div style="margin-bottom: 12px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 12px;">
             <button id="tool-clear" class="danger" style="width: 100%;">Clear Tile</button>
         </div>
 
-        <div style="display: flex; gap: 5px;">
-            <button id="editor-save" class="success" style="flex: 1;">Save</button>
-            <button id="editor-exit" style="flex: 1;">Exit</button>
+        <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.1);">
+            <div style="margin-bottom: 6px; font-size: 12px; color: var(--text-secondary);">Map Name:</div>
+            <input type="text" id="editor-map-name" value="MyMap"
+                style="width: 100%; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 6px; margin-bottom: 8px; border-radius: 6px; outline: none;">
+            <div style="display: flex; gap: 6px;">
+                <button id="editor-save-map" class="primary" style="flex: 1; font-size: 11px;">Save</button>
+                <button id="editor-load-map" class="primary" style="flex: 1; font-size: 11px;">Load</button>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px; text-align: center;">
+            <button id="editor-exit" class="danger" style="width: 100%;">Exit Editor</button>
         </div>
     </div>
     </div>

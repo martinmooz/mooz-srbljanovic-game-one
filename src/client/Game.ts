@@ -76,6 +76,7 @@ export class Game {
     // GUI Interaction State
     private isPlacingStation: boolean = false;
     private isSettingSpawn: boolean = false;
+    private isDemolishing: boolean = false;
     private isPanning: boolean = false;
     private lastMouseX: number = 0;
     private lastMouseY: number = 0;
@@ -116,9 +117,37 @@ export class Game {
         } else {
             // New Game Setup
             // Map is already initialized in MapManager constructor
-            // Center camera roughly
-            this.camera.x = -100;
-            this.camera.y = -100;
+
+            // Center camera on Capital City
+            const capital = this.map.getCapitalCity();
+            if (capital) {
+                // Convert tile coordinates to world coordinates (roughly)
+                // Tile size is 64 (from Renderer), but let's just center on the tile
+                // Camera x/y are offsets. To center (cx, cy), we need:
+                // offset = screenCenter - worldPos
+                // But Camera.ts implementation might be different. 
+                // Let's look at Camera.ts or just set it to tile * 64 for now and refine if needed.
+                // Actually, Camera.ts usually treats x,y as top-left or center.
+                // Let's assume x,y is the center point for now or just move it there.
+
+                // Based on existing code: this.camera.x = -100;
+                // It seems x,y are direct offsets.
+                // Let's try to center it.
+                // If map is 20x15, center is 10,7.5
+                // 10 * 64 = 640.
+                // If screen is 800x600, center is 400,300.
+                // We want 640 + offset = 400 => offset = -240.
+
+                // Let's just set it to the city coordinates * 64 * -1 + screenCenter offset
+                // Since we don't know screen size here easily, let's just approximate
+                // or just set it to negative city position to bring it to top-left at least.
+
+                this.camera.x = -capital.x * 64 + 400; // Assuming 800 width
+                this.camera.y = -capital.y * 64 + 300; // Assuming 600 height
+            } else {
+                this.camera.x = -100;
+                this.camera.y = -100;
+            }
         }
 
         this.setupInput(canvas);
@@ -324,18 +353,40 @@ export class Game {
         });
 
         // GUI Buttons
+        document.getElementById('btn-build-track')?.addEventListener('click', () => {
+            this.isPlacingStation = false;
+            this.isSettingSpawn = false;
+            this.isDemolishing = false;
+            this.updateCursor();
+            this.updateButtonStates();
+            this.notificationManager.addNotification('Build Mode Active (Drag to Build)', 10, 10, '#FFFFFF');
+        });
+
         document.getElementById('btn-place-station')?.addEventListener('click', () => {
             this.isPlacingStation = !this.isPlacingStation;
             this.isSettingSpawn = false;
+            this.isDemolishing = false;
             this.updateCursor();
+            this.updateButtonStates();
             this.notificationManager.addNotification(this.isPlacingStation ? 'Click to Place Station' : 'Cancelled', 10, 10, '#FFFFFF');
         });
 
         document.getElementById('btn-set-spawn')?.addEventListener('click', () => {
             this.isSettingSpawn = !this.isSettingSpawn;
             this.isPlacingStation = false;
+            this.isDemolishing = false;
             this.updateCursor();
+            this.updateButtonStates();
             this.notificationManager.addNotification(this.isSettingSpawn ? 'Click Station to Set Spawn' : 'Cancelled', 10, 10, '#FFFFFF');
+        });
+
+        document.getElementById('btn-demolish')?.addEventListener('click', () => {
+            this.isDemolishing = !this.isDemolishing;
+            this.isPlacingStation = false;
+            this.isSettingSpawn = false;
+            this.updateCursor();
+            this.updateButtonStates();
+            this.notificationManager.addNotification(this.isDemolishing ? 'Click to Demolish (50% refund)' : 'Cancelled', 10, 10, '#FFFFFF');
         });
 
         document.getElementById('btn-undo')?.addEventListener('click', () => {
@@ -356,6 +407,36 @@ export class Game {
         document.getElementById('btn-cam-reset')?.addEventListener('click', () => {
             this.camera.x = -100;
             this.camera.y = -100;
+        });
+
+        // Global UI Sounds
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('mouseenter', () => {
+                if (!btn.disabled) {
+                    this.audioManager.playSound('ui-hover');
+                }
+            });
+            btn.addEventListener('click', () => {
+                if (!btn.disabled) {
+                    this.audioManager.playSound('ui-click');
+                }
+            });
+        });
+
+        // Market Dashboard
+        document.getElementById('btn-toggle-market')?.addEventListener('click', () => {
+            const market = document.getElementById('market-dashboard');
+            if (market) {
+                market.style.display = market.style.display === 'none' ? 'block' : 'none';
+                if (market.style.display === 'block') {
+                    this.updateMarketUI();
+                }
+            }
+        });
+
+        document.getElementById('btn-close-market')?.addEventListener('click', () => {
+            const market = document.getElementById('market-dashboard');
+            if (market) market.style.display = 'none';
         });
     }
 
@@ -484,6 +565,21 @@ export class Game {
                     return;
                 }
 
+                if (this.isDemolishing) {
+                    if (this.map.demolishTile(tile.x, tile.y, this.economy)) {
+                        this.audioManager.playSound('build');
+                        this.particleManager.emit(ParticleType.DUST, tile.x + 0.5, tile.y + 0.5, 12);
+                        this.notificationManager.addNotification('Demolished!', tile.x, tile.y, '#FFA500');
+                        this.updateUI();
+                        this.isDemolishing = false; // Reset after demolish
+                        this.updateCursor();
+                    } else {
+                        this.audioManager.playSound('error');
+                        this.notificationManager.addNotification('Nothing to demolish!', tile.x, tile.y, '#FF0000');
+                    }
+                    return;
+                }
+
                 if (this.isSettingSpawn) {
                     const tileData = this.map.getTile(tile.x, tile.y);
                     if (tileData && tileData.trackType === 'station') {
@@ -598,7 +694,7 @@ export class Game {
             if (!foundTrain) {
                 const tileData = this.map.getTile(tile.x, tile.y);
                 if (tileData && tileData.trackType === 'station') {
-                    this.tooltipManager.showStationTooltip(tile.x, tile.y, e.clientX, e.clientY);
+                    this.tooltipManager.showStationTooltip(tileData, e.clientX, e.clientY);
                 } else {
                     this.tooltipManager.hide();
                 }
@@ -935,6 +1031,19 @@ export class Game {
             btnExpress.style.cursor = unlocked ? 'pointer' : 'not-allowed';
             if (!unlocked) btnExpress.title = `Unlocks at Level ${TrainTypeManager.getTrainInfo(TrainType.EXPRESS).unlockLevel}`;
         }
+
+        // Buy Button Pulse
+        const buyBtn = document.getElementById('btn-buy-train');
+        if (buyBtn) {
+            const info = TrainTypeManager.getTrainInfo(this.selectedTrainType);
+            if (this.economy.getBalance() >= info.cost) {
+                buyBtn.classList.add('pulse-button');
+                buyBtn.classList.add('success'); // Make it green/success colored
+            } else {
+                buyBtn.classList.remove('pulse-button');
+                buyBtn.classList.remove('success');
+            }
+        }
     }
 
     private updateBuildCostPreview(): void {
@@ -1065,6 +1174,7 @@ export class Game {
         const now = performance.now();
         let deltaTime = (now - this.lastTime) / 1000; // Seconds
         this.lastTime = now;
+        this.camera.update();
 
         // Update Camera
         const camSpeed = 500 * deltaTime; // Pixels per second
@@ -1152,6 +1262,9 @@ export class Game {
             // Update Market Prices
             this.marketManager.update(this.timeManager.getGameTimeDays());
 
+            // Update Production
+            this.map.updateProduction(deltaTime);
+
             // Update Track Maintenance
             this.maintenanceManager.update(this.timeManager.getGameTimeDays());
 
@@ -1196,149 +1309,165 @@ export class Game {
                 if (tile && tile.trackType === 'station' && !train.hasDelivered) {
                     // FIX: Prevent immediate delivery at spawn station
                     const isAtSpawnStation = (train.x === train.startX && train.y === train.startY);
-                    if (isAtSpawnStation) {
-                        // Skip revenue generation at spawn station
-                        continue;
-                    }
 
-                    // Mark as delivered to prevent duplicate revenue
-                    train.hasDelivered = true;
+                    // LOADING LOGIC
+                    // If train is empty (or we treat "delivering" as emptying), try to load
+                    // For MVP, let's assume train has cargoType. If it matches what station produces, we "refill" or "load".
+                    // But wait, trains are spawned with cargo.
+                    // Let's change it: Trains arrive, unload (if accepted), THEN load (if produced).
 
-                    console.log(`🚂 Train delivering at (${train.x}, ${train.y}) from spawn (${train.startX}, ${train.startY})`);
+                    // 1. UNLOAD
+                    let unloaded = false;
+                    if (tile.accepts && tile.accepts.includes(train.cargoType)) {
+                        if (isAtSpawnStation) {
+                            // Don't unload at spawn immediately after spawn
+                        } else {
+                            // Unload
+                            unloaded = true;
+                            train.hasDelivered = true; // Mark as "done" for this trip? 
+                            // Actually, we want it to go back and forth.
+                            // But TrainActor logic is simple "wander".
+                            // Let's keep "hasDelivered" to prevent double-trigger on same tile.
 
-                    // Delivery!
-                    // Calculate revenue. 
-                    // FIX: Distance from spawn station, not (0,0)
-                    const dist = Math.abs(train.x - train.startX) + Math.abs(train.y - train.startY);
+                            // Add to station storage
+                            if (!tile.storage) tile.storage = {};
+                            tile.storage[train.cargoType] = (tile.storage[train.cargoType] || 0) + 1; // Add 1 unit? Or full train load?
+                            // Let's say 1 train = 5 units
+                            tile.storage[train.cargoType] = Math.min(100, (tile.storage[train.cargoType] || 0) + 5);
 
-                    // Time in transit
-                    const arrivalTime = this.timeManager.getGameTimeDays();
-                    const timeInTransit = arrivalTime - train.startTime;
+                            console.log(`🚂 Train delivered ${train.cargoType} at (${train.x}, ${train.y})`);
 
-                    // Speed: Train speed is in tiles/sec (real sec). 
-                    // We need optimal speed in KPH for the simulator.
-                    // This is a bit abstract. Let's map 1 tile/sec -> 100 kph.
-                    const speedKPH = train.speed * 50;
+                            // Calculate Revenue
+                            const dist = Math.abs(train.x - train.startX) + Math.abs(train.y - train.startY);
+                            const arrivalTime = this.timeManager.getGameTimeDays();
+                            const timeInTransit = arrivalTime - train.startTime;
+                            const speedKPH = train.speed * 50;
+                            const marketPrice = this.marketManager.getCurrentPrice(train.cargoType);
+                            let revenue = this.revenueSimulator.calculateRevenue(marketPrice, dist, timeInTransit, speedKPH);
 
-                    // Use dynamic market price for cargo
-                    const marketPrice = this.marketManager.getCurrentPrice(train.cargoType);
-                    let revenue = this.revenueSimulator.calculateRevenue(marketPrice, dist, timeInTransit, speedKPH);
+                            // Apply bonuses
+                            revenue *= this.progressionManager.getBonuses().revenue;
+                            revenue *= this.eventManager.getRevenueModifier();
 
-                    // Check if station accepts this cargo
-                    let accepted = true;
-                    if (tile.accepts && tile.accepts.length > 0) {
-                        accepted = tile.accepts.includes(train.cargoType);
-                    }
+                            // Add XP & Money
+                            const xpGained = Math.floor(revenue / 10);
+                            const result = this.progressionManager.addXp(xpGained);
+                            this.economy.add(revenue); // FIX: Actually add money!
 
-                    if (!accepted) {
-                        revenue *= 0.2; // Penalty for wrong station
-                        this.notificationManager.addNotification('Wrong Station!', train.x, train.y - 1, '#FF0000');
-                    } else {
-                        // Apply revenue bonus from progression and events
-                        revenue *= this.progressionManager.getBonuses().revenue;
-                        revenue *= this.eventManager.getRevenueModifier();
+                            // Notify
+                            this.notificationManager.addNotification(`+$${Math.floor(revenue)}`, train.x, train.y - 1, '#51CF66');
+                            for (const msg of result.notifications) {
+                                this.notificationManager.addNotification(msg, train.x, train.y - 2, '#00FFFF');
+                            }
 
-                        // Add XP
-                        const xpGained = Math.floor(revenue / 10);
-                        const result = this.progressionManager.addXp(xpGained);
+                            if (result.leveledUp) {
+                                this.audioManager.playSound('levelUp');
+                                this.particleManager.emit(ParticleType.LEVEL_UP, train.x, train.y, 50);
+                            }
 
-                        // Notify level ups
-                        for (const msg of result.notifications) {
-                            this.notificationManager.addNotification(msg, train.x, train.y - 2, '#00FFFF');
-                        }
+                            // Stats
+                            this.statisticsManager.recordDelivery(revenue);
+                            if (this.statisticsManager.getStats().totalDeliveries === 1) {
+                                this.celebrateFirstDelivery(train.x, train.y);
+                            }
 
-                        if (result.leveledUp) {
-                            this.audioManager.playSound('levelUp');
-                            this.particleManager.emit(ParticleType.LEVEL_UP, train.x, train.y, 50);
+                            // Goal Progress
+                            this.goalManager.updateProgress('delivery', 1);
+                            this.goalManager.updateProgress('money', revenue);
+                            this.checkGoalCompletion();
 
-                            // Screen shake or big notification?
-                            // For now, just the particles and sound are good.
-                        }
-                    }
-
-                    // Record statistics
-                    this.statisticsManager.recordDelivery(revenue);
-
-                    // First delivery celebration!
-                    const stats = this.statisticsManager.getStats();
-                    if (stats.totalDeliveries === 1) {
-                        this.celebrateFirstDelivery(train.x, train.y);
-                    }
-
-                    // Check achievements
-                    const unlockedAchievements = this.achievementManager.checkAchievements({
-                        totalRevenue: this.statisticsManager.getStats().totalRevenue,
-                        deliveries: this.statisticsManager.getStats().totalDeliveries,
-                        trainCount: this.trains.length,
-                        lastDeliveryTime: timeInTransit
-                    });
-
-                    // Show achievement notifications
-                    for (const achId of unlockedAchievements) {
-                        const achievements = this.achievementManager.getAchievements();
-                        const ach = achievements.find(a => a.id === achId);
-                        if (ach) {
-                            this.notificationManager.addNotification(
-                                `${ach.icon} ${ach.name}!`,
-                                train.x,
-                                train.y - 1,
-                                '#FFD700'
-                            );
-                            this.audioManager.playSound('achievement');
-                            this.particleManager.emit(ParticleType.STAR, train.x + 0.5, train.y + 0.5, 20);
+                            // Achievements
+                            const unlockedAchievements = this.achievementManager.checkAchievements({
+                                totalRevenue: this.statisticsManager.getStats().totalRevenue,
+                                deliveries: this.statisticsManager.getStats().totalDeliveries,
+                                trainCount: this.trains.length,
+                                lastDeliveryTime: timeInTransit
+                            });
+                            for (const achId of unlockedAchievements) {
+                                const achievements = this.achievementManager.getAchievements();
+                                const ach = achievements.find(a => a.id === achId);
+                                if (ach) {
+                                    this.notificationManager.addNotification(`${ach.icon} ${ach.name}!`, train.x, train.y - 1, '#FFD700');
+                                    this.audioManager.playSound('achievement');
+                                }
+                            }
                         }
                     }
 
-                    // Show notification
-                    const cargoInfo = CargoTypeManager.getCargoInfo(train.cargoType);
-                    this.notificationManager.addNotification(
-                        `+$${Math.floor(revenue)}`,
-                        train.x,
-                        train.y,
-                        '#FFD700'
-                    );
-                    this.audioManager.playSound('delivery');
+                    // 2. LOAD
+                    // If station produces something, try to load it
+                    if (tile.produces && tile.produces.length > 0) {
+                        // Pick first available cargo
+                        for (const cargo of tile.produces) {
+                            const available = tile.storage?.[cargo] || 0;
+                            if (available >= 5) { // Need 5 units to fill train
+                                // Load!
+                                // If we just unloaded, we can reload with new cargo
+                                // If we didn't unload, we only reload if we are "empty" or same cargo?
+                                // For MVP simplicity: If we unloaded, we are empty. If we arrived empty (spawn), we are empty.
+                                // But TrainActor doesn't track "empty".
+                                // Let's assume if we unloaded, we can switch cargo.
+                                // If we are at spawn and have "default" cargo but haven't moved, maybe we can switch?
 
-                    // ENHANCED: Multiple particle effects for revenue
-                    this.particleManager.emit(ParticleType.SPARKLE, train.x + 0.5, train.y + 0.5, 15);
-                    this.particleManager.emit(ParticleType.MONEY, train.x + 0.5, train.y + 0.5, 8); // Floating $ signs
+                                // Logic: If unloaded OR (isAtSpawnStation && train.startTime === arrivalTime?), switch cargo.
+                                // Better: If we unloaded, we definitely switch.
+                                // If we are just passing through and it matches our current cargo, maybe top up? (Not implemented)
 
-                    this.economy.add(revenue);
+                                if (unloaded || isAtSpawnStation) {
+                                    tile.storage[cargo] -= 5;
+                                    train.cargoType = cargo as CargoType;
+                                    train.startX = train.x; // Reset trip start
+                                    train.startY = train.y;
+                                    train.startTime = this.timeManager.getGameTimeDays();
+                                    train.hasDelivered = false; // Ready for new delivery
 
-                    console.log(`💰 Revenue added: $${Math.floor(revenue)}, New balance: $${this.economy.getBalance()}`);
-
-                    // Update Goals
-                    this.goalManager.updateProgress('delivery', 1);
-                    if (train.cargoType === CargoType.PASSENGERS) {
-                        this.goalManager.updateProgress('passengers', 1);
+                                    this.notificationManager.addNotification(`Loaded ${cargo}`, train.x, train.y, '#FFFFFF');
+                                    this.audioManager.playSound('click'); // Load sound?
+                                    break; // Only load one type
+                                }
+                            }
+                        }
                     }
-                    this.goalManager.updateProgress('money', this.statisticsManager.getStats().totalRevenue);
-                    this.checkGoalCompletion();
+                } else if (tile && tile.trackType === 'station' && train.hasDelivered) {
+                    // We are still on the station but already delivered/loaded.
+                    // Check if we moved away? 
+                    // TrainActor doesn't reset hasDelivered until it leaves?
+                    // Actually, we need to reset hasDelivered when we leave the station.
+                }
 
-                    this.updateUI();
+                // Reset hasDelivered if NOT on a station
+                if (!tile || tile.trackType !== 'station') {
+                    train.hasDelivered = false;
+                }
 
-                    // Check Victory
-                    const currentStats = this.statisticsManager.getStats();
-                    if (this.victoryManager.checkVictory({
+
+
+                this.checkGoalCompletion();
+
+                this.updateUI();
+
+                // Check Victory
+                const currentStats = this.statisticsManager.getStats();
+                if (this.victoryManager.checkVictory({
+                    totalRevenue: currentStats.totalRevenue,
+                    totalDeliveries: currentStats.totalDeliveries,
+                    gameDays: this.timeManager.getGameTimeDays()
+                })) {
+                    this.victoryManager.showVictoryScreen({
                         totalRevenue: currentStats.totalRevenue,
                         totalDeliveries: currentStats.totalDeliveries,
-                        gameDays: this.timeManager.getGameTimeDays()
-                    })) {
-                        this.victoryManager.showVictoryScreen({
-                            totalRevenue: currentStats.totalRevenue,
-                            totalDeliveries: currentStats.totalDeliveries,
-                            gameDays: this.timeManager.getGameTimeDays(),
-                            trainCount: this.trains.length,
-                            achievementCount: this.achievementManager.getUnlockedCount(),
-                            highestRevenue: currentStats.highestRevenue
-                        });
-                        this.isPaused = true;
-                    }
-
-                    // Despawn
-                    this.trains.splice(i, 1);
+                        gameDays: this.timeManager.getGameTimeDays(),
+                        trainCount: this.trains.length,
+                        achievementCount: this.achievementManager.getUnlockedCount(),
+                        highestRevenue: currentStats.highestRevenue
+                    });
+                    this.isPaused = true;
                 }
+
+                // Despawn
+                this.trains.splice(i, 1);
             }
+        }
 
             // Industry Smoke
             // Iterate over map to find industries and emit smoke
@@ -1346,284 +1475,345 @@ export class Game {
             // For MVP, just iterate all stations.
             // 5% chance per frame per industry
             if (Math.random() < 0.05) {
-                for (let y = 0; y < this.map.getHeight(); y++) {
-                    for (let x = 0; x < this.map.getWidth(); x++) {
-                        const tile = this.map.getTile(x, y);
-                        if (tile && tile.trackType === 'station') {
-                            if (tile.stationType === 'STEEL_MILL' || tile.stationType === 'COAL_MINE' || tile.stationType === 'TOOL_FACTORY') {
-                                // Emit smoke
-                                this.particleManager.emit(ParticleType.SMOKE, x + 0.5, y + 0.2, 1);
-                            }
+            for (let y = 0; y < this.map.getHeight(); y++) {
+                for (let x = 0; x < this.map.getWidth(); x++) {
+                    const tile = this.map.getTile(x, y);
+                    if (tile && tile.trackType === 'station') {
+                        if (tile.stationType === 'STEEL_MILL' || tile.stationType === 'COAL_MINE' || tile.stationType === 'TOOL_FACTORY') {
+                            // Emit smoke
+                            this.particleManager.emit(ParticleType.SMOKE, x + 0.5, y + 0.2, 1);
                         }
                     }
                 }
             }
-
-            // Render
-            this.renderer.render(
-                this.map,
-                this.trains,
-                this.notificationManager,
-                this.particleManager,
-                this.camera,
-                this.selectedSpawnStation,
-                this.timeManager.getGameTimeDays(),
-                this.eventManager,
-                this.isDragging ? null : this.currentMouseTile,
-                this.editingRouteId ? this.routeManager.getRoute(this.editingRouteId) : null // Pass active route
-            );    // Render Ghost Tracks if dragging
-            if (this.isDragging && this.dragStartTile && this.dragEndTile) {
-                const path = this.map.getTrackPath(this.dragStartTile, this.dragEndTile);
-                this.renderer.drawGhostTracks(path);
-            }
-
-        } catch (e) {
-            console.error("Game Loop Error:", e);
-            this.isPaused = true;
-            this.notificationManager.addNotification("Game Error! Check Console", 10, 10, '#FF0000');
         }
 
-        requestAnimationFrame(() => this.loop());
+        // Render
+        this.renderer.render(
+            this.map,
+            this.trains,
+            this.notificationManager,
+            this.particleManager,
+            this.camera,
+            this.selectedSpawnStation,
+            this.timeManager.getGameTimeDays(),
+            this.eventManager,
+            this.isDragging ? null : this.currentMouseTile,
+            this.editingRouteId ? this.routeManager.getRoute(this.editingRouteId) : null // Pass active route
+        );    // Render Ghost Tracks if dragging
+        if (this.isDragging && this.dragStartTile && this.dragEndTile) {
+            const path = this.map.getTrackPath(this.dragStartTile, this.dragEndTile);
+            this.renderer.drawGhostTracks(path);
+        }
+
+    } catch(e) {
+        console.error("Game Loop Error:", e);
+        this.isPaused = true;
+        this.notificationManager.addNotification("Game Error! Check Console", 10, 10, '#FF0000');
+    }
+
+    requestAnimationFrame(() => this.loop());
     }
 
     private setupRouteUI(): void {
-        const panel = document.getElementById('route-panel');
-        const btnToggle = document.getElementById('btn-toggle-routes');
-        const btnClose = document.getElementById('btn-close-routes');
-        const btnNew = document.getElementById('btn-new-route');
-        const btnFinish = document.getElementById('btn-finish-route');
-        const btnDelete = document.getElementById('btn-delete-route');
+    const panel = document.getElementById('route-panel');
+    const btnToggle = document.getElementById('btn-toggle-routes');
+    const btnClose = document.getElementById('btn-close-routes');
+    const btnNew = document.getElementById('btn-new-route');
+    const btnFinish = document.getElementById('btn-finish-route');
+    const btnDelete = document.getElementById('btn-delete-route');
 
-        if (btnToggle && panel) {
-            btnToggle.addEventListener('click', () => {
-                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-                this.updateRouteListUI();
-            });
-        }
+    if(btnToggle && panel) {
+    btnToggle.addEventListener('click', () => {
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        this.updateRouteListUI();
+    });
+}
 
-        if (btnClose && panel) {
-            btnClose.addEventListener('click', () => {
-                panel.style.display = 'none';
-                this.editingRouteId = null;
-                this.updateRouteEditorUI();
-            });
-        }
+if (btnClose && panel) {
+    btnClose.addEventListener('click', () => {
+        panel.style.display = 'none';
+        this.editingRouteId = null;
+        this.updateRouteEditorUI();
+    });
+}
 
-        if (btnNew) {
-            btnNew.addEventListener('click', () => {
-                const route = this.routeManager.createRoute(`Route ${this.routeManager.getAllRoutes().length + 1}`, '#FF00FF');
-                this.editingRouteId = route.id;
-                this.updateRouteListUI();
-                this.updateRouteEditorUI();
-            });
-        }
+if (btnNew) {
+    btnNew.addEventListener('click', () => {
+        const route = this.routeManager.createRoute(`Route ${this.routeManager.getAllRoutes().length + 1}`, '#FF00FF');
+        this.editingRouteId = route.id;
+        this.updateRouteListUI();
+        this.updateRouteEditorUI();
+    });
+}
 
-        if (btnFinish) {
-            btnFinish.addEventListener('click', () => {
-                this.editingRouteId = null;
-                this.updateRouteEditorUI();
-                this.updateRouteListUI();
-            });
-        }
+if (btnFinish) {
+    btnFinish.addEventListener('click', () => {
+        this.editingRouteId = null;
+        this.updateRouteEditorUI();
+        this.updateRouteListUI();
+    });
+}
 
-        if (btnDelete) {
-            btnDelete.addEventListener('click', () => {
-                if (this.editingRouteId) {
-                    this.routeManager.deleteRoute(this.editingRouteId);
-                    this.editingRouteId = null;
-                    this.updateRouteEditorUI();
-                    this.updateRouteListUI();
-                }
-            });
+if (btnDelete) {
+    btnDelete.addEventListener('click', () => {
+        if (this.editingRouteId) {
+            this.routeManager.deleteRoute(this.editingRouteId);
+            this.editingRouteId = null;
+            this.updateRouteEditorUI();
+            this.updateRouteListUI();
         }
+    });
+}
     }
 
     private updateRouteListUI(): void {
-        const list = document.getElementById('route-list');
-        if (!list) return;
+    const list = document.getElementById('route-list');
+    if(!list) return;
 
-        list.innerHTML = '';
-        const routes = this.routeManager.getAllRoutes();
+    list.innerHTML = '';
+    const routes = this.routeManager.getAllRoutes();
 
-        if (routes.length === 0) {
-            list.innerHTML = '<div style="text-align: center; color: #888; font-size: 12px; padding: 10px;">No routes created</div>';
-            return;
-        }
+    if(routes.length === 0) {
+    list.innerHTML = '<div style="text-align: center; color: #888; font-size: 12px; padding: 10px;">No routes created</div>';
+    return;
+}
 
-        routes.forEach(route => {
-            const div = document.createElement('div');
-            div.style.padding = '8px';
-            div.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
-            div.style.cursor = 'pointer';
-            div.style.backgroundColor = this.editingRouteId === route.id ? 'rgba(255,255,255,0.1)' : 'transparent';
+routes.forEach(route => {
+    const div = document.createElement('div');
+    div.style.padding = '8px';
+    div.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+    div.style.cursor = 'pointer';
+    div.style.backgroundColor = this.editingRouteId === route.id ? 'rgba(255,255,255,0.1)' : 'transparent';
 
-            div.innerHTML = `
+    div.innerHTML = `
                 <div style="font-weight: bold; color: ${route.color};">${route.name}</div>
                 <div style="font-size: 10px; color: #aaa;">${route.stops.length} stops</div>
             `;
 
-            div.addEventListener('click', () => {
-                this.editingRouteId = route.id;
-                this.updateRouteListUI();
-                this.updateRouteEditorUI();
-            });
+    div.addEventListener('click', () => {
+        this.editingRouteId = route.id;
+        this.updateRouteListUI();
+        this.updateRouteEditorUI();
+    });
 
-            list.appendChild(div);
-        });
+    list.appendChild(div);
+});
     }
 
     private updateRouteEditorUI(): void {
-        const editor = document.getElementById('active-route-editor');
-        const btnNew = document.getElementById('btn-new-route');
+    const editor = document.getElementById('active-route-editor');
+    const btnNew = document.getElementById('btn-new-route');
 
-        if (!editor || !btnNew) return;
+    if(!editor || !btnNew) return;
 
-        if (this.editingRouteId) {
-            editor.style.display = 'block';
-            btnNew.style.display = 'none';
+if (this.editingRouteId) {
+    editor.style.display = 'block';
+    btnNew.style.display = 'none';
 
-            const route = this.routeManager.getRoute(this.editingRouteId);
-            if (route) {
-                const nameEl = document.getElementById('editing-route-name');
-                if (nameEl) nameEl.innerText = route.name;
+    const route = this.routeManager.getRoute(this.editingRouteId);
+    if (route) {
+        const nameEl = document.getElementById('editing-route-name');
+        if (nameEl) nameEl.innerText = route.name;
 
-                const stopsList = document.getElementById('route-stops-list');
-                if (stopsList) {
-                    stopsList.innerHTML = '';
-                    route.stops.forEach((stop, index) => {
-                        const li = document.createElement('li');
-                        li.style.padding = '4px 0';
-                        li.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-                        li.innerHTML = `
+        const stopsList = document.getElementById('route-stops-list');
+        if (stopsList) {
+            stopsList.innerHTML = '';
+            route.stops.forEach((stop, index) => {
+                const li = document.createElement('li');
+                li.style.padding = '4px 0';
+                li.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+                li.innerHTML = `
                             <span style="color: #aaa;">${index + 1}.</span> 
                             Stop at (${stop.x}, ${stop.y})
                             <button class="delete-stop-btn" style="float: right; background: none; border: none; color: #FF6B6B; cursor: pointer;">✕</button>
                         `;
 
-                        // Delete stop button
-                        const btn = li.querySelector('.delete-stop-btn');
-                        if (btn) {
-                            btn.addEventListener('click', (e) => {
-                                e.stopPropagation();
-                                this.routeManager.removeStop(route.id, index);
-                                this.updateRouteEditorUI();
-                                this.updateRouteListUI();
-                            });
-                        }
-
-                        stopsList.appendChild(li);
+                // Delete stop button
+                const btn = li.querySelector('.delete-stop-btn');
+                if (btn) {
+                    btn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.routeManager.removeStop(route.id, index);
+                        this.updateRouteEditorUI();
+                        this.updateRouteListUI();
                     });
                 }
-            }
-        } else {
-            editor.style.display = 'none';
-            btnNew.style.display = 'block';
+
+                stopsList.appendChild(li);
+            });
         }
+    }
+} else {
+    editor.style.display = 'none';
+    btnNew.style.display = 'block';
+}
     }
 
     private setupTrainDetailsUI(): void {
-        const panel = document.getElementById('train-details-panel');
-        const btnClose = document.getElementById('btn-close-train-details');
-        const routeSelect = document.getElementById('train-route-select') as HTMLSelectElement;
-        const btnSell = document.getElementById('btn-sell-train');
+    const panel = document.getElementById('train-details-panel');
+    const btnClose = document.getElementById('btn-close-train-details');
+    const routeSelect = document.getElementById('train-route-select') as HTMLSelectElement;
+    const btnSell = document.getElementById('btn-sell-train');
 
-        if (btnClose && panel) {
-            btnClose.addEventListener('click', () => {
-                panel.style.display = 'none';
-                this.selectedTrain = null;
-            });
-        }
+    if(btnClose && panel) {
+    btnClose.addEventListener('click', () => {
+        panel.style.display = 'none';
+        this.selectedTrain = null;
+    });
+}
 
-        if (routeSelect) {
-            routeSelect.addEventListener('change', (e) => {
-                if (this.selectedTrain) {
-                    const routeId = (e.target as HTMLSelectElement).value;
-                    if (routeId) {
-                        const route = this.routeManager.getRoute(routeId);
-                        if (route) {
-                            this.selectedTrain.assignedRoute = route;
-                            this.notificationManager.addNotification(`Assigned to ${route.name}`, this.selectedTrain.x, this.selectedTrain.y - 1, route.color);
-                        }
-                    } else {
-                        this.selectedTrain.assignedRoute = null;
-                        this.notificationManager.addNotification(`Route Cleared`, this.selectedTrain.x, this.selectedTrain.y - 1, '#FFFFFF');
-                    }
+if (routeSelect) {
+    routeSelect.addEventListener('change', (e) => {
+        if (this.selectedTrain) {
+            const routeId = (e.target as HTMLSelectElement).value;
+            if (routeId) {
+                const route = this.routeManager.getRoute(routeId);
+                if (route) {
+                    this.selectedTrain.assignedRoute = route;
+                    this.notificationManager.addNotification(`Assigned to ${route.name}`, this.selectedTrain.x, this.selectedTrain.y - 1, route.color);
                 }
-            });
+            } else {
+                this.selectedTrain.assignedRoute = null;
+                this.notificationManager.addNotification(`Route Cleared`, this.selectedTrain.x, this.selectedTrain.y - 1, '#FFFFFF');
+            }
         }
+    });
+}
 
-        if (btnSell) {
-            btnSell.addEventListener('click', () => {
-                if (this.selectedTrain) {
-                    const value = Math.floor(TrainTypeManager.getTrainInfo(this.selectedTrain.trainType).cost * 0.75);
-                    this.economy.add(value);
-                    this.audioManager.playSound('sell');
-                    this.particleManager.emit(ParticleType.SPARKLE, this.selectedTrain.x, this.selectedTrain.y, 10);
+if (btnSell) {
+    btnSell.addEventListener('click', () => {
+        if (this.selectedTrain) {
+            const value = Math.floor(TrainTypeManager.getTrainInfo(this.selectedTrain.trainType).cost * 0.75);
+            this.economy.add(value);
+            this.audioManager.playSound('sell');
+            this.particleManager.emit(ParticleType.SPARKLE, this.selectedTrain.x, this.selectedTrain.y, 10);
 
-                    // Remove train
-                    const index = this.trains.indexOf(this.selectedTrain);
-                    if (index > -1) {
-                        this.trains.splice(index, 1);
-                    }
+            // Remove train
+            const index = this.trains.indexOf(this.selectedTrain);
+            if (index > -1) {
+                this.trains.splice(index, 1);
+            }
 
-                    this.selectedTrain = null;
-                    if (panel) panel.style.display = 'none';
-                    this.updateUI();
-                }
-            });
+            this.selectedTrain = null;
+            if (panel) panel.style.display = 'none';
+            this.updateUI();
         }
+    });
+}
     }
 
     private updateTrainDetailsUI(): void {
-        const panel = document.getElementById('train-details-panel');
-        if (!panel || !this.selectedTrain) {
-            if (panel) panel.style.display = 'none';
-            return;
+    const panel = document.getElementById('train-details-panel');
+    if(!panel || !this.selectedTrain) {
+    if (panel) panel.style.display = 'none';
+    return;
+}
+
+panel.style.display = 'block';
+
+const typeEl = document.getElementById('train-details-type');
+const cargoEl = document.getElementById('train-details-cargo');
+const speedEl = document.getElementById('train-details-speed');
+const sellValEl = document.getElementById('train-sell-value');
+const routeSelect = document.getElementById('train-route-select') as HTMLSelectElement;
+
+const info = TrainTypeManager.getTrainInfo(this.selectedTrain.trainType);
+const cargoInfo = CargoTypeManager.getCargoInfo(this.selectedTrain.cargoType);
+
+if (typeEl) typeEl.innerText = info.name;
+if (cargoEl) cargoEl.innerText = cargoInfo.name;
+if (speedEl) speedEl.innerText = info.speed.toFixed(1);
+if (sellValEl) sellValEl.innerText = Math.floor(info.cost * 0.75).toString();
+
+// Update Route Select
+if (routeSelect) {
+    routeSelect.innerHTML = '<option value="">None</option>';
+    const routes = this.routeManager.getAllRoutes();
+    routes.forEach(route => {
+        const option = document.createElement('option');
+        option.value = route.id;
+        option.innerText = route.name;
+        option.style.color = route.color;
+        if (this.selectedTrain?.assignedRoute?.id === route.id) {
+            option.selected = true;
         }
-
-        panel.style.display = 'block';
-
-        const typeEl = document.getElementById('train-details-type');
-        const cargoEl = document.getElementById('train-details-cargo');
-        const speedEl = document.getElementById('train-details-speed');
-        const sellValEl = document.getElementById('train-sell-value');
-        const routeSelect = document.getElementById('train-route-select') as HTMLSelectElement;
-
-        const info = TrainTypeManager.getTrainInfo(this.selectedTrain.trainType);
-        const cargoInfo = CargoTypeManager.getCargoInfo(this.selectedTrain.cargoType);
-
-        if (typeEl) typeEl.innerText = info.name;
-        if (cargoEl) cargoEl.innerText = cargoInfo.name;
-        if (speedEl) speedEl.innerText = info.speed.toFixed(1);
-        if (sellValEl) sellValEl.innerText = Math.floor(info.cost * 0.75).toString();
-
-        // Update Route Select
-        if (routeSelect) {
-            routeSelect.innerHTML = '<option value="">None</option>';
-            const routes = this.routeManager.getAllRoutes();
-            routes.forEach(route => {
-                const option = document.createElement('option');
-                option.value = route.id;
-                option.innerText = route.name;
-                option.style.color = route.color;
-                if (this.selectedTrain?.assignedRoute?.id === route.id) {
-                    option.selected = true;
-                }
-                routeSelect.appendChild(option);
-            });
-        }
+        routeSelect.appendChild(option);
+    });
+}
     }
-    private updateCursor(): void {
-        const canvas = document.getElementById('gameCanvas');
-        if (!canvas) return;
 
-        if (this.isPlacingStation) {
-            canvas.style.cursor = 'crosshair';
-        } else if (this.isSettingSpawn) {
-            canvas.style.cursor = 'help';
-        } else {
-            canvas.style.cursor = 'default';
+    private updateMarketUI(): void {
+    const list = document.getElementById('market-list');
+    if(!list) return;
+
+    list.innerHTML = '';
+    const prices = this.marketManager.getAllPrices();
+
+    for(const price of prices) {
+        const info = CargoTypeManager.getCargoInfo(price.cargoType);
+        const currentPrice = Math.floor(price.basePrice * price.currentMultiplier);
+
+        let trendIcon = '➖';
+        let trendColor = '#888';
+        if (price.trend > 0) {
+            trendIcon = '📈';
+            trendColor = '#00FF00';
+        } else if (price.trend < 0) {
+            trendIcon = '📉';
+            trendColor = '#FF0000';
         }
+
+        const row = document.createElement('tr');
+        row.style.borderBottom = '1px solid #333';
+        row.innerHTML = `
+                <td style="padding: 8px; display: flex; align-items: center; gap: 8px;">
+                    <div style="width: 12px; height: 12px; background: ${info.color}; border-radius: 50%;"></div>
+                    ${info.name}
+                </td>
+                <td style="padding: 8px; text-align: right; font-family: monospace;">$${currentPrice}</td>
+                <td style="padding: 8px; text-align: center; color: ${trendColor};">${trendIcon}</td>
+            `;
+        list.appendChild(row);
+    }
+}
+
+    private updateButtonStates(): void {
+    const btnBuild = document.getElementById('btn-build-track');
+    const btnStation = document.getElementById('btn-place-station');
+    const btnSpawn = document.getElementById('btn-set-spawn');
+    const btnDemolish = document.getElementById('btn-demolish');
+
+    if(btnBuild) btnBuild.classList.remove('active');
+    if(btnStation) btnStation.classList.remove('active');
+    if(btnSpawn) btnSpawn.classList.remove('active');
+    if(btnDemolish) btnDemolish.classList.remove('active');
+
+    if(this.isPlacingStation) {
+    btnStation?.classList.add('active');
+} else if (this.isSettingSpawn) {
+    btnSpawn?.classList.add('active');
+} else if (this.isDemolishing) {
+    btnDemolish?.classList.add('active');
+} else {
+    // Default is build track mode
+    btnBuild?.classList.add('active');
+}
+    }
+
+    private updateCursor(): void {
+    const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
+    if(!canvas) return;
+
+    if(this.isPlacingStation) {
+    canvas.style.cursor = 'crosshair';
+} else if (this.isSettingSpawn) {
+    canvas.style.cursor = 'pointer';
+} else if (this.isDemolishing) {
+    canvas.style.cursor = 'not-allowed';
+} else {
+    canvas.style.cursor = 'default';
+}
     }
 }
 

@@ -32,6 +32,23 @@ export class ParticleManager {
         }
     }
 
+    public createFloatingText(x: number, y: number, text: string, color: string): void {
+        const particle: Particle = {
+            x,
+            y,
+            vx: 0,
+            vy: -1.0, // Float up 1 tile per second (was -20 which was way too fast)
+            life: 0,
+            maxLife: 2.0,
+            size: 16,
+            color: color,
+            type: ParticleType.MONEY,
+            alpha: 1.0,
+            text: text
+        };
+        this.particles.push(particle);
+    }
+
     private createParticle(type: ParticleType, x: number, y: number): Particle {
         const particle: Particle = {
             x,
@@ -48,8 +65,8 @@ export class ParticleManager {
 
         switch (type) {
             case ParticleType.SMOKE:
-                particle.vx = (Math.random() - 0.5) * 15;
-                particle.vy = -20 - Math.random() * 30; // Rise upward faster
+                particle.vx = (Math.random() - 0.5) * 2; // Reduced from 15
+                particle.vy = -2 - Math.random() * 3; // Reduced from -20/-50
                 particle.maxLife = 2.0;
                 particle.size = 8 + Math.random() * 6;
                 // Start dark, fade out
@@ -58,7 +75,7 @@ export class ParticleManager {
 
             case ParticleType.SPARKLE:
                 const angle = Math.random() * Math.PI * 2;
-                const speed = 30 + Math.random() * 40;
+                const speed = 2 + Math.random() * 3; // Reduced from 30-70
                 particle.vx = Math.cos(angle) * speed;
                 particle.vy = Math.sin(angle) * speed;
                 particle.maxLife = 0.8;
@@ -67,8 +84,8 @@ export class ParticleManager {
                 break;
 
             case ParticleType.DUST:
-                particle.vx = (Math.random() - 0.5) * 30;
-                particle.vy = -10 - Math.random() * 20;
+                particle.vx = (Math.random() - 0.5) * 3;
+                particle.vy = -1 - Math.random() * 2;
                 particle.maxLife = 0.6;
                 particle.size = 3 + Math.random() * 2;
                 particle.color = '#8B7355';
@@ -76,7 +93,7 @@ export class ParticleManager {
 
             case ParticleType.STAR:
                 const starAngle = Math.random() * Math.PI * 2;
-                const starSpeed = 50 + Math.random() * 50;
+                const starSpeed = 4 + Math.random() * 4;
                 particle.vx = Math.cos(starAngle) * starSpeed;
                 particle.vy = Math.sin(starAngle) * starSpeed;
                 particle.maxLife = 1.2;
@@ -86,8 +103,8 @@ export class ParticleManager {
                 break;
 
             case ParticleType.STEAM:
-                particle.vx = (Math.random() - 0.5) * 5;
-                particle.vy = -15 - Math.random() * 10;
+                particle.vx = (Math.random() - 0.5) * 1;
+                particle.vy = -2 - Math.random() * 1;
                 particle.maxLife = 2.0;
                 particle.size = 4 + Math.random() * 6;
                 particle.color = `rgba(255, 255, 255, ${0.3 + Math.random() * 0.2})`;
@@ -95,7 +112,7 @@ export class ParticleManager {
 
             case ParticleType.SPARKS:
                 const sparkAngle = -Math.PI / 2 + (Math.random() - 0.5) * 2; // Upward cone
-                const sparkSpeed = 40 + Math.random() * 40;
+                const sparkSpeed = 3 + Math.random() * 3;
                 particle.vx = Math.cos(sparkAngle) * sparkSpeed;
                 particle.vy = Math.sin(sparkAngle) * sparkSpeed;
                 particle.maxLife = 0.5;
@@ -105,8 +122,8 @@ export class ParticleManager {
 
             case ParticleType.MONEY:
                 // Floating dollar signs
-                particle.vx = (Math.random() - 0.5) * 20;
-                particle.vy = -40 - Math.random() * 20; // Float upward faster
+                particle.vx = (Math.random() - 0.5) * 1;
+                particle.vy = -2 - Math.random() * 1;
                 particle.maxLife = 2.0;
                 particle.size = 14 + Math.random() * 6; // Text size
                 particle.color = '#51CF66'; // Green money color
@@ -115,8 +132,8 @@ export class ParticleManager {
 
             case ParticleType.LEVEL_UP:
                 // Confetti
-                particle.vx = (Math.random() - 0.5) * 100;
-                particle.vy = -100 - Math.random() * 100; // Shoot up
+                particle.vx = (Math.random() - 0.5) * 5;
+                particle.vy = -5 - Math.random() * 5;
                 particle.maxLife = 2.0;
                 particle.size = 4 + Math.random() * 4;
                 const confettiColors = ['#FFD700', '#FF6B6B', '#51CF66', '#4A90E2', '#9B59B6'];
@@ -135,9 +152,9 @@ export class ParticleManager {
             p.x += p.vx * deltaTime;
             p.y += p.vy * deltaTime;
 
-            // Apply gravity (except for smoke which rises)
-            if (p.type !== ParticleType.SMOKE) {
-                p.vy += 100 * deltaTime; // Gravity
+            // Apply gravity (except for smoke and money which rise)
+            if (p.type !== ParticleType.SMOKE && p.type !== ParticleType.MONEY && p.type !== ParticleType.STEAM) {
+                p.vy += 5 * deltaTime; // Gravity (reduced from 100)
             }
 
             // Apply drag
