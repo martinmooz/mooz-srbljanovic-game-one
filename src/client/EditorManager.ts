@@ -94,6 +94,8 @@ export class EditorManager {
         document.getElementById('tool-iron')?.addEventListener('click', () => this.setTool(EditorTool.STATION, 'IRON_MINE'));
         document.getElementById('tool-steel')?.addEventListener('click', () => this.setTool(EditorTool.STATION, 'STEEL_MILL'));
         document.getElementById('tool-factory')?.addEventListener('click', () => this.setTool(EditorTool.STATION, 'TOOL_FACTORY'));
+        document.getElementById('tool-lumber')?.addEventListener('click', () => this.setTool(EditorTool.STATION, 'LUMBER_CAMP'));
+        document.getElementById('tool-sawmill')?.addEventListener('click', () => this.setTool(EditorTool.STATION, 'SAWMILL'));
 
         document.getElementById('tool-clear')?.addEventListener('click', () => this.setTool(EditorTool.CLEAR, 'CLEAR'));
 
@@ -125,6 +127,8 @@ export class EditorManager {
             if (this.selectedBrush === 'IRON_MINE') id = 'tool-iron';
             if (this.selectedBrush === 'STEEL_MILL') id = 'tool-steel';
             if (this.selectedBrush === 'TOOL_FACTORY') id = 'tool-factory';
+            if (this.selectedBrush === 'LUMBER_CAMP') id = 'tool-lumber';
+            if (this.selectedBrush === 'SAWMILL') id = 'tool-sawmill';
         } else {
             id = 'tool-clear';
         }

@@ -21,9 +21,9 @@ export class ProgressionManager {
 
     private rewards: LevelReward[] = [
         { level: 2, description: 'Unlock Fast Trains', unlocks: ['FAST_TRAIN'] },
-        { level: 3, description: '+10% Revenue', bonus: { type: 'REVENUE', value: 1.1 } },
-        { level: 4, description: 'Unlock Heavy Trains', unlocks: ['HEAVY_TRAIN'] },
-        { level: 5, description: '+20% Train Speed', bonus: { type: 'SPEED', value: 1.2 } },
+        { level: 3, description: 'Unlock Heavy Trains', unlocks: ['HEAVY_TRAIN'] },
+        { level: 4, description: 'Unlock Advanced Industries (Steel, Tool Factory)' },
+        { level: 5, description: 'Unlock Express Trains', unlocks: ['EXPRESS_TRAIN'] },
         { level: 6, description: 'Master Tycoon Status' }
     ];
 
@@ -31,16 +31,18 @@ export class ProgressionManager {
         this.load();
     }
 
-    public addXp(amount: number): string[] {
+    public addXp(amount: number): { notifications: string[], leveledUp: boolean } {
         this.xp += amount;
         const notifications: string[] = [];
+        let leveledUp = false;
 
         while (this.xp >= this.nextLevelXp) {
             this.levelUp(notifications);
+            leveledUp = true;
         }
 
         this.save();
-        return notifications;
+        return { notifications, leveledUp };
     }
 
     private levelUp(notifications: string[]) {

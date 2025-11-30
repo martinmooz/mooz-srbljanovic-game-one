@@ -5,6 +5,7 @@ import { NotificationManager } from './NotificationManager';
 import { ParticleManager } from './ParticleManager';
 import { Camera } from './Camera';
 import { EventManager, EventType } from './EventManager';
+import { Route } from '../core/Route';
 
 export class Renderer {
     private canvas: HTMLCanvasElement;
@@ -39,8 +40,9 @@ export class Renderer {
         camera: Camera,
         selectedSpawn: { x: number, y: number } | null | undefined,
         gameTime: number, // Fractional day (0.0 - 1.0)
-        eventManager?: EventManager,
-        hoverTile?: { x: number, y: number } | null
+        eventManager: EventManager,
+        hoverTile: { x: number, y: number } | null,
+        activeRoute: Route | null = null // NEW: Active route to visualize
     ) {
         // Clear with full resolution dimensions
         this.ctx.save();
@@ -83,6 +85,11 @@ export class Renderer {
 
                 // Draw World
                 this.drawGrid(map, selectedSpawn, timeOfDay, isNight);
+
+                // Draw Route Visualization
+                if (activeRoute) {
+                    this.drawRoute(activeRoute);
+                }
 
                 // Draw hover tile highlight
                 if (hoverTile) {
@@ -172,25 +179,44 @@ export class Renderer {
     }
 
     private drawDayNightOverlay(timeOfDay: number): void {
+        // ENHANCED: Better color transitions for dawn/dusk
         let color = '';
         let opacity = 0;
 
-        if (timeOfDay < 0.2) { // Night
+        if (timeOfDay < 0.15) { // Deep Night (0-0.15 = 3.6 hours)
             color = '#000033';
-            opacity = 0.5;
-        } else if (timeOfDay < 0.3) { // Dawn
-            color = '#ff4500'; // Orange-Red
-            opacity = 0.2 * (1 - (timeOfDay - 0.2) * 10);
-        } else if (timeOfDay < 0.7) { // Day
+            opacity = 0.6;
+        } else if (timeOfDay < 0.25) { // Dawn (0.15-0.25 = 2.4 hours)
+            // Transition from dark blue to orange
+            const progress = (timeOfDay - 0.15) / 0.1;
+            const r = Math.floor(0 + progress * 255);
+            const g = Math.floor(0 + progress * 140);
+            const b = Math.floor(51 - progress * 51);
+            color = `rgb(${r}, ${g}, ${b})`;
+            opacity = 0.6 * (1 - progress) + 0.3 * progress;
+        } else if (timeOfDay < 0.7) { // Day (0.25-0.7 = 10.8 hours)
             opacity = 0;
-        } else if (timeOfDay < 0.8) { // Dusk
-            color = '#ff4500';
-            opacity = 0.3 * ((timeOfDay - 0.7) * 10);
-        } else { // Night
+        } else if (timeOfDay < 0.8) { // Dusk (0.7-0.8 = 2.4 hours)
+            // Transition from clear to orange/purple
+            const progress = (timeOfDay - 0.7) / 0.1;
+            const r = Math.floor(255 * progress);
+            const g = Math.floor(140 * (1 - progress * 0.5));
+            const b = Math.floor(100 * progress);
+            color = `rgb(${r}, ${g}, ${b})`;
+            opacity = 0.4 * progress;
+        } else { // Night (0.8-1.0 = 4.8 hours)
+            const progress = (timeOfDay - 0.8) / 0.2;
             color = '#000033';
-            opacity = 0.5;
+            opacity = 0.6 * progress;
         }
 
+        // Render overlay
+        if (opacity > 0) {
+            this.ctx.fillStyle = color;
+            this.ctx.globalAlpha = opacity;
+            this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+            this.ctx.globalAlpha = 1.0; // Reset
+        }
     }
 
     private drawWeather(eventManager: EventManager): void {
@@ -307,59 +333,38 @@ export class Renderer {
     private drawTerrain(x: number, y: number, type: string | undefined, time: number, gridX: number, gridY: number): void {
         const ts = this.tileSize;
 
-        // Base color
+        // Base Terrain
         switch (type) {
             case 'WATER':
-                this.ctx.fillStyle = '#4A90E2';
+                this.ctx.fillStyle = '#29B6F6'; // Lighter blue
                 this.ctx.fillRect(x, y, ts, ts);
-                // Waves
-                this.ctx.fillStyle = 'rgba(255,255,255,0.2)';
-                const offset = Math.sin(time * 20 + gridX + gridY) * 3;
-                this.ctx.fillRect(x + 5 + offset, y + 10, 10, 2);
-                this.ctx.fillRect(x + 20 - offset, y + 25, 8, 2);
+                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time);
                 break;
             case 'FOREST':
-                this.ctx.fillStyle = '#2d5a27';
+                this.ctx.fillStyle = '#388E3C'; // Darker green
                 this.ctx.fillRect(x, y, ts, ts);
-                // Trees
-                this.drawTree(x + 5, y + 5, '#1e3c1a');
-                this.drawTree(x + 20, y + 15, '#1a3316');
-                this.drawTree(x + 10, y + 25, '#22441e');
+                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time);
                 break;
             case 'MOUNTAIN':
-                this.ctx.fillStyle = '#7f8c8d';
+                this.ctx.fillStyle = '#9E9E9E'; // Grey
                 this.ctx.fillRect(x, y, ts, ts);
-                // Rock texture
-                this.ctx.fillStyle = '#95a5a6';
-                this.ctx.beginPath();
-                this.ctx.moveTo(x, y + ts);
-                this.ctx.lineTo(x + ts / 2, y + 5);
-                this.ctx.lineTo(x + ts, y + ts);
-                this.ctx.fill();
-                // Snow cap
-                this.ctx.fillStyle = '#ecf0f1';
-                this.ctx.beginPath();
-                this.ctx.moveTo(x + ts / 2, y + 5);
-                this.ctx.lineTo(x + ts / 2 - 5, y + 15);
-                this.ctx.lineTo(x + ts / 2 + 5, y + 15);
-                this.ctx.fill();
+                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time);
+                break;
+            case 'DESERT':
+                this.ctx.fillStyle = '#E6C288'; // Sand
+                this.ctx.fillRect(x, y, ts, ts);
+                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time);
+                break;
+            case 'SNOW':
+                this.ctx.fillStyle = '#F0F8FF'; // AliceBlue
+                this.ctx.fillRect(x, y, ts, ts);
+                this.drawTerrainDetails(x, y, ts, gridX, gridY, type, time);
                 break;
             case 'GRASS':
             default:
-                this.ctx.fillStyle = '#7CFC00'; // Base grass
+                this.ctx.fillStyle = '#8BC34A'; // Lighter green
                 this.ctx.fillRect(x, y, ts, ts);
-
-                // Texture pattern based on grid position to look seamless but varied
-                this.ctx.fillStyle = 'rgba(0,0,0,0.03)';
-                if ((gridX + gridY) % 2 === 0) {
-                    this.ctx.fillRect(x, y, ts, ts);
-                }
-                // Random-looking tufts
-                this.ctx.fillStyle = '#66cc00';
-                if ((gridX * 3 + gridY * 7) % 5 === 0) {
-                    this.ctx.fillRect(x + 5, y + 5, 2, 2);
-                    this.ctx.fillRect(x + 8, y + 4, 2, 2);
-                }
+                this.drawTerrainDetails(x, y, ts, gridX, gridY, 'GRASS', time);
                 break;
         }
 
@@ -367,6 +372,98 @@ export class Renderer {
         this.ctx.strokeStyle = 'rgba(0,0,0,0.05)';
         this.ctx.strokeRect(x, y, ts, ts);
     }
+
+    // Deterministic random number generator based on coordinates
+    private deterministicRandom(x: number, y: number, seed: number = 0): number {
+        const a = 1103515245;
+        const c = 12345;
+        const m = 2 ** 31;
+        let s = (x * 1000 + y + seed) % m;
+        s = (a * s + c) % m;
+        return s / m;
+    }
+
+    private drawTerrainDetails(x: number, y: number, ts: number, gridX: number, gridY: number, type: string, time: number): void {
+        const ctx = this.ctx;
+        const rand = (seed: number) => this.deterministicRandom(gridX, gridY, seed);
+
+        switch (type) {
+            case 'WATER':
+                // Waves
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 1;
+                const offset = Math.sin(time * 2 + gridX + gridY) * 3;
+                ctx.beginPath();
+                ctx.moveTo(x + 5, y + ts / 2 + offset);
+                ctx.lineTo(x + ts - 5, y + ts / 2 + offset);
+                ctx.stroke();
+                break;
+            case 'FOREST':
+                // Trees
+                const treeCount = 3 + Math.floor(rand(0) * 3);
+                for (let i = 0; i < treeCount; i++) {
+                    const tx = x + 5 + rand(i + 1) * (ts - 10);
+                    const ty = y + 5 + rand(i + 10) * (ts - 10);
+                    this.drawTree(tx, ty, '#1B5E20');
+                }
+                break;
+            case 'MOUNTAIN':
+                // Rock texture
+                ctx.fillStyle = '#757575';
+                ctx.beginPath();
+                ctx.moveTo(x + 5, y + ts - 5);
+                ctx.lineTo(x + ts / 2, y + 5);
+                ctx.lineTo(x + ts - 5, y + ts - 5);
+                ctx.fill();
+                // Snow cap
+                ctx.fillStyle = '#ecf0f1';
+                ctx.beginPath();
+                ctx.moveTo(x + ts / 2, y + 5);
+                ctx.lineTo(x + ts / 2 - 4, y + 12);
+                ctx.lineTo(x + ts / 2 + 4, y + 12);
+                ctx.fill();
+                break;
+            case 'DESERT':
+                // Cactus
+                if (rand(100) > 0.8) {
+                    const cx = x + rand(10) * (ts - 4);
+                    const cy = y + rand(20) * (ts - 8);
+                    ctx.fillStyle = '#2E7D32';
+                    ctx.fillRect(cx + 2, cy, 2, 8); // Stem
+                    ctx.fillRect(cx, cy + 2, 6, 2); // Arms
+                    ctx.fillRect(cx, cy - 1, 2, 2); // Top
+                }
+                break;
+            case 'SNOW':
+                // Snow Trees (Pine with white top)
+                if (rand(200) > 0.7) {
+                    const tx = x + rand(30) * (ts - 10);
+                    const ty = y + rand(40) * (ts - 10);
+                    this.drawTree(tx, ty, '#2c3e50'); // Darker pine
+                    // Snow cap on tree
+                    ctx.fillStyle = '#FFF';
+                    ctx.beginPath();
+                    ctx.moveTo(tx + 5, ty);
+                    ctx.lineTo(tx + 2, ty + 4);
+                    ctx.lineTo(tx + 8, ty + 4);
+                    ctx.fill();
+                }
+                break;
+            case 'GRASS':
+            default:
+                // Random grass/flowers
+                for (let i = 0; i < 3; i++) {
+                    if (rand(i + 100) > 0.6) {
+                        const gx = x + rand(i * 10) * ts;
+                        const gy = y + rand(i * 20) * ts;
+                        ctx.fillStyle = rand(i + 200) > 0.9 ? '#FFEB3B' : '#689F38';
+                        ctx.fillRect(gx, gy, 2, 2);
+                    }
+                }
+                break;
+        }
+    }
+
 
     private drawTree(x: number, y: number, color: string): void {
         this.ctx.fillStyle = '#5d4037'; // Trunk
@@ -512,6 +609,8 @@ export class Renderer {
             case 'STEEL_MILL': baseColor = '#7f8c8d'; buildingColor = '#95a5a6'; roofColor = '#34495e'; break;
             case 'TOOL_FACTORY': baseColor = '#f39c12'; buildingColor = '#f1c40f'; roofColor = '#d35400'; break;
             case 'CITY': baseColor = '#bdc3c7'; buildingColor = '#ecf0f1'; roofColor = '#2980b9'; break;
+            case 'OIL_WELL': baseColor = '#1A1A1A'; buildingColor = '#2c3e50'; roofColor = '#000000'; break;
+            case 'GOLD_MINE': baseColor = '#F1C40F'; buildingColor = '#F39C12'; roofColor = '#D35400'; break;
         }
 
         // Platform
@@ -555,11 +654,35 @@ export class Renderer {
             this.ctx.fillText(type.split('_')[0], x + ts / 2, y + ts - 4);
         }
 
-        // Spawn Indicator
+        // Spawn Indicator - ENHANCED with pulsing glow
         if (isSpawn) {
-            this.ctx.strokeStyle = '#2ecc71';
-            this.ctx.lineWidth = 2;
+            // Animated pulsing effect
+            const time = Date.now() / 1000;
+            const pulse = (Math.sin(time * 3) + 1) / 2; // 0-1 oscillation
+            const glowIntensity = 10 + pulse * 15; // 10-25px blur
+            const opacity = 0.6 + pulse * 0.4; // 0.6-1.0 opacity
+
+            // Outer glow
+            this.ctx.shadowColor = '#2ecc71';
+            this.ctx.shadowBlur = glowIntensity;
+            this.ctx.strokeStyle = `rgba(46, 204, 113, ${opacity})`;
+            this.ctx.lineWidth = 3;
             this.ctx.strokeRect(x + 1, y + 1, ts - 2, ts - 2);
+
+            // Inner highlight
+            this.ctx.shadowBlur = glowIntensity / 2;
+            this.ctx.strokeStyle = `rgba(255, 255, 255, ${opacity * 0.5})`;
+            this.ctx.lineWidth = 1;
+            this.ctx.strokeRect(x + 3, y + 3, ts - 6, ts - 6);
+
+            // Reset shadow
+            this.ctx.shadowBlur = 0;
+
+            // Label "SPAWN"
+            this.ctx.fillStyle = `rgba(46, 204, 113, ${opacity})`;
+            this.ctx.font = 'bold 8px Inter';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('SPAWN', x + ts / 2, y - 4);
         }
     }
 
@@ -716,5 +839,57 @@ export class Renderer {
         const tx = Math.floor(worldX / this.tileSize);
         const ty = Math.floor(worldY / this.tileSize);
         return { x: tx, y: ty };
+    }
+
+    private drawRoute(route: Route): void {
+        const ts = this.tileSize;
+
+        this.ctx.save();
+
+        // Draw lines connecting stops
+        if (route.stops.length > 1) {
+            this.ctx.beginPath();
+            this.ctx.strokeStyle = route.color;
+            this.ctx.lineWidth = 3;
+            this.ctx.setLineDash([10, 10]);
+            this.ctx.globalAlpha = 0.6;
+
+            const first = route.stops[0];
+            this.ctx.moveTo(first.x * ts + ts / 2, first.y * ts + ts / 2);
+
+            for (let i = 1; i < route.stops.length; i++) {
+                const stop = route.stops[i];
+                this.ctx.lineTo(stop.x * ts + ts / 2, stop.y * ts + ts / 2);
+            }
+
+            // Loop back to start
+            this.ctx.lineTo(first.x * ts + ts / 2, first.y * ts + ts / 2);
+
+            this.ctx.stroke();
+        }
+
+        // Draw stop numbers
+        this.ctx.globalAlpha = 1.0;
+        this.ctx.setLineDash([]);
+        this.ctx.font = 'bold 14px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+
+        route.stops.forEach((stop, index) => {
+            const x = stop.x * ts + ts / 2;
+            const y = stop.y * ts + ts / 2;
+
+            // Circle background
+            this.ctx.fillStyle = route.color;
+            this.ctx.beginPath();
+            this.ctx.arc(x, y - 25, 12, 0, Math.PI * 2);
+            this.ctx.fill();
+
+            // Number
+            this.ctx.fillStyle = '#FFFFFF';
+            this.ctx.fillText((index + 1).toString(), x, y - 25);
+        });
+
+        this.ctx.restore();
     }
 }

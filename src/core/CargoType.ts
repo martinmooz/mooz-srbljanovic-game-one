@@ -4,7 +4,11 @@ export enum CargoType {
     IRON_ORE = 'IRON_ORE',
     STEEL = 'STEEL',
     TOOLS = 'TOOLS',
-    GOODS = 'GOODS'
+    GOODS = 'GOODS',
+    WOOD = 'WOOD',
+    LUMBER = 'LUMBER',
+    OIL = 'OIL',
+    GOLD = 'GOLD'
 }
 
 export interface CargoInfo {
@@ -51,6 +55,30 @@ export class CargoTypeManager {
             baseValue: 600,
             color: '#4682B4',
             name: 'Goods'
+        },
+        [CargoType.WOOD]: {
+            type: CargoType.WOOD,
+            baseValue: 150,
+            color: '#8B4513',
+            name: 'Wood'
+        },
+        [CargoType.LUMBER]: {
+            type: CargoType.LUMBER,
+            baseValue: 400,
+            color: '#D2B48C',
+            name: 'Lumber'
+        },
+        [CargoType.OIL]: {
+            type: CargoType.OIL,
+            baseValue: 350,
+            color: '#1A1A1A',
+            name: 'Oil'
+        },
+        [CargoType.GOLD]: {
+            type: CargoType.GOLD,
+            baseValue: 1000,
+            color: '#FFD700',
+            name: 'Gold'
         }
     };
 

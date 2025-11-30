@@ -1,10 +1,12 @@
 import { MapManager } from './MapManager';
 import { CargoType, CargoTypeManager } from './CargoType';
+import { Route } from './Route';
 
 export enum TrainType {
     NORMAL = 'normal',
     FAST = 'fast',
-    HEAVY = 'heavy'
+    HEAVY = 'heavy',
+    EXPRESS = 'express'
 }
 
 export interface TrainTypeInfo {
@@ -13,6 +15,7 @@ export interface TrainTypeInfo {
     cost: number;
     name: string;
     color: string;
+    unlockLevel: number;
 }
 
 export class TrainTypeManager {
@@ -22,21 +25,32 @@ export class TrainTypeManager {
             speed: 2.0,
             cost: 100,
             name: 'Normal',
-            color: '#FF0000'
+            color: '#FF0000',
+            unlockLevel: 1
         },
         [TrainType.FAST]: {
             type: TrainType.FAST,
             speed: 4.0,
             cost: 200,
             name: 'Fast',
-            color: '#00FF00'
+            color: '#00FF00',
+            unlockLevel: 2
         },
         [TrainType.HEAVY]: {
             type: TrainType.HEAVY,
             speed: 1.5,
             cost: 150,
             name: 'Heavy',
-            color: '#0000FF'
+            color: '#0000FF',
+            unlockLevel: 3
+        },
+        [TrainType.EXPRESS]: {
+            type: TrainType.EXPRESS,
+            speed: 6.0,
+            cost: 400,
+            name: 'Express',
+            color: '#00FFFF',
+            unlockLevel: 5
         }
     };
 
@@ -59,10 +73,24 @@ export class TrainActor {
     private lastX: number;
     private lastY: number;
 
+    // FIX: Track starting position for revenue calculation
+    public startX: number;
+    public startY: number;
+    public hasDelivered: boolean = false; // FIX: Prevent duplicate revenue on same station
+
     public startTime: number;
     public cargoType: CargoType;
     public trainType: TrainType;
     public cargoValue: number;
+
+    // Route System
+    public assignedRoute: Route | null = null;
+    public currentRouteStopIndex: number = 0;
+
+    // Visuals
+    public history: { x: number, y: number, direction: number | null }[] = [];
+    public wagonCount: number = 3;
+    private historyLimit: number = 100; // Store enough for wagons
 
     constructor(startX: number, startY: number, trainType: TrainType, startTime: number, cargoType?: CargoType) {
         this.x = startX;
@@ -70,6 +98,10 @@ export class TrainActor {
         this.lastX = startX;
         this.lastY = startY;
         this.progress = 0.5; // Start at center of tile
+
+        // FIX: Store starting position
+        this.startX = startX;
+        this.startY = startY;
 
         this.trainType = trainType || TrainType.NORMAL;
         const trainInfo = TrainTypeManager.getTrainInfo(this.trainType);
@@ -117,6 +149,25 @@ export class TrainActor {
         };
     }
 
+    public getWagonPosition(index: number): { x: number, y: number, direction: number | null } | null {
+        // Assume wagons are spaced by ~0.8 tiles (approx 32px)
+        // Since speed varies, we can't just use index. We need distance.
+        // But for MVP, let's assume constant history updates per frame? No, tick is time based.
+        // Let's just use history index for now, assuming high enough tick rate.
+        // Better: history stores exact positions.
+
+        // Spacing in history steps. If we push every frame, it depends on FPS.
+        // Let's push to history only when moving significant amount?
+        // Or just use a fixed spacing index for now and refine later.
+        const spacing = 15; // History points per wagon
+        const historyIndex = (index + 1) * spacing;
+
+        if (historyIndex < this.history.length) {
+            return this.history[historyIndex];
+        }
+        return null;
+    }
+
     public tick(map: MapManager, deltaTime: number): void {
         // Simplified movement logic:
         // 1. If we have a direction, move along it.
@@ -136,6 +187,13 @@ export class TrainActor {
             // Move
             this.progress += this.speed * deltaTime;
 
+            // Record History
+            const visualPos = this.getVisualPosition();
+            this.history.unshift(visualPos);
+            if (this.history.length > this.historyLimit) {
+                this.history.pop();
+            }
+
             // Check for tile transition
             if (this.progress >= 1.0) {
                 // Moved to next tile
@@ -147,6 +205,16 @@ export class TrainActor {
     private pickNextDirection(map: MapManager): void {
         const tile = map.getTile(this.x, this.y);
         if (!tile) return;
+
+        // Check if we reached a route stop
+        if (this.assignedRoute && this.assignedRoute.stops.length > 0) {
+            const target = this.assignedRoute.stops[this.currentRouteStopIndex];
+            if (this.x === target.x && this.y === target.y) {
+                // Reached stop, move to next
+                this.currentRouteStopIndex = (this.currentRouteStopIndex + 1) % this.assignedRoute.stops.length;
+                console.log(`Train reached stop ${this.currentRouteStopIndex} of route ${this.assignedRoute.name}`);
+            }
+        }
 
         // Simple logic: pick any connected direction that isn't where we came from (reverse).
         // For MVP, just pick the first valid connection.
@@ -167,13 +235,14 @@ export class TrainActor {
             // Filter out the direction that leads back to lastX, lastY
             // unless it's the only option (dead end).
 
+            let filtered = validDirections;
             if (validDirections.length > 1) {
                 // Find which direction leads to lastX, lastY
                 // 0: N -> leads to y-1. So if lastY == y-1, that's where we came from.
                 // Actually, simpler:
                 // If we move N(0), newY = y-1. If newY == lastY && newX == lastX, avoid.
 
-                const filtered = validDirections.filter(dir => {
+                filtered = validDirections.filter(dir => {
                     let nextX = this.x;
                     let nextY = this.y;
                     if (dir === 0) nextY -= 1;
@@ -183,16 +252,43 @@ export class TrainActor {
 
                     return !(nextX === this.lastX && nextY === this.lastY);
                 });
+            }
 
-                if (filtered.length > 0) {
-                    this.currentDirection = filtered[0];
-                    return;
-                }
+            // Route Logic: Pick direction closest to target
+            if (this.assignedRoute && this.assignedRoute.stops.length > 0 && filtered.length > 0) {
+                const target = this.assignedRoute.stops[this.currentRouteStopIndex];
+
+                // Sort filtered directions by distance to target
+                filtered.sort((a, b) => {
+                    const posA = this.getFuturePos(a);
+                    const posB = this.getFuturePos(b);
+                    const distA = Math.abs(posA.x - target.x) + Math.abs(posA.y - target.y);
+                    const distB = Math.abs(posB.x - target.x) + Math.abs(posB.y - target.y);
+                    return distA - distB;
+                });
+
+                this.currentDirection = filtered[0];
+                return;
+            }
+
+            if (filtered.length > 0) {
+                this.currentDirection = filtered[0];
+                return;
             }
 
             // If only one option (or all filtered out which shouldn't happen if length>1 logic is right), pick first.
             this.currentDirection = validDirections[0];
         }
+    }
+
+    private getFuturePos(dir: number): { x: number, y: number } {
+        let nextX = this.x;
+        let nextY = this.y;
+        if (dir === 0) nextY -= 1;
+        else if (dir === 1) nextX += 1;
+        else if (dir === 2) nextY += 1;
+        else if (dir === 3) nextX -= 1;
+        return { x: nextX, y: nextY };
     }
 
     private moveTile(map: MapManager): void {

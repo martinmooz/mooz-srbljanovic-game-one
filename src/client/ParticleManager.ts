@@ -4,7 +4,9 @@ export enum ParticleType {
     DUST = 'dust',
     STAR = 'star',
     STEAM = 'steam',
-    SPARKS = 'sparks'
+    SPARKS = 'sparks',
+    MONEY = 'money',
+    LEVEL_UP = 'level_up'
 }
 
 export interface Particle {
@@ -18,6 +20,7 @@ export interface Particle {
     color: string;
     type: ParticleType;
     alpha: number;
+    text?: string;  // NEW: Optional text for MONEY particles
 }
 
 export class ParticleManager {
@@ -98,6 +101,26 @@ export class ParticleManager {
                 particle.size = 2 + Math.random() * 2;
                 particle.color = '#FFD700'; // Gold
                 break;
+
+            case ParticleType.MONEY:
+                // Floating dollar signs
+                particle.vx = (Math.random() - 0.5) * 10;
+                particle.vy = -30 - Math.random() * 20; // Float upward
+                particle.maxLife = 1.5;
+                particle.size = 12 + Math.random() * 4; // Text size
+                particle.color = '#51CF66'; // Green money color
+                particle.text = '$'; // Dollar sign
+                break;
+
+            case ParticleType.LEVEL_UP:
+                // Confetti
+                particle.vx = (Math.random() - 0.5) * 100;
+                particle.vy = -100 - Math.random() * 100; // Shoot up
+                particle.maxLife = 2.0;
+                particle.size = 4 + Math.random() * 4;
+                const confettiColors = ['#FFD700', '#FF6B6B', '#51CF66', '#4A90E2', '#9B59B6'];
+                particle.color = confettiColors[Math.floor(Math.random() * confettiColors.length)];
+                break;
         }
 
         return particle;
@@ -142,6 +165,19 @@ export class ParticleManager {
             if (p.type === ParticleType.STAR) {
                 // Draw star shape
                 this.drawStar(ctx, screenX, screenY, p.size, p.color);
+            } else if (p.type === ParticleType.MONEY && p.text) {
+                // Draw text particle (dollar signs)
+                ctx.fillStyle = p.color;
+                ctx.font = `bold ${p.size}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+
+                // Add glow effect for money
+                ctx.shadowColor = p.color;
+                ctx.shadowBlur = 6;
+
+                ctx.fillText(p.text, screenX, screenY);
+                ctx.shadowBlur = 0; // Reset shadow
             } else {
                 // Draw circle
                 ctx.fillStyle = p.color;

@@ -42,6 +42,13 @@
                                     id="highest-revenue">0</span></span></div>
                         <div class="stat-row"><span class="stat-label">Awards</span> <span class="stat-value"><span
                                     id="achievement-count">0</span>/4</span></div>
+
+                        <!-- Revenue Chart -->
+                        <div style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 5px;">
+                            <div style="font-size: 10px; color: #aaa; margin-bottom: 4px;">Revenue History</div>
+                            <canvas id="revenue-chart" width="220" height="80"
+                                style="width: 100%; border-radius: 4px;"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -128,6 +135,7 @@
                     <button id="btn-train-normal" class="train-option active" style="color: #FF6B6B;">Normal</button>
                     <button id="btn-train-fast" class="train-option" style="color: #51CF66;">Fast</button>
                     <button id="btn-train-heavy" class="train-option" style="color: #339AF0;">Heavy</button>
+                    <button id="btn-train-express" class="train-option" style="color: #00FFFF;">Express</button>
                 </div>
                 <div style="font-size: 10px; color: #aaa;">Selected: <span id="selected-train-type">Normal
                         ($100)</span></div>
@@ -159,6 +167,84 @@
                 💰 Cost: <span id="build-cost-amount">$0</span>
             </div>
         </div>
+
+        <!-- Route Panel (Hidden by default) -->
+        <div id="route-panel" class="glass-panel"
+            style="display: none; position: absolute; top: 60px; right: 20px; width: 250px; max-height: 400px; overflow-y: auto;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
+                <span style="font-weight: bold;">🛤️ Routes</span>
+                <button id="btn-close-routes"
+                    style="background: none; border: none; color: #aaa; cursor: pointer;">✕</button>
+            </div>
+
+            <div id="route-list" style="margin-bottom: 10px;">
+                <!-- Routes will be listed here -->
+                <div style="text-align: center; color: #888; font-size: 12px; padding: 10px;">No routes created</div>
+            </div>
+
+            <button id="btn-new-route" class="primary" style="width: 100%; margin-bottom: 10px;">+ New Route</button>
+
+            <div id="active-route-editor"
+                style="display: none; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
+                <div style="font-size: 12px; color: #aaa; margin-bottom: 5px;">Editing: <span id="editing-route-name"
+                        style="color: white; font-weight: bold;">Route 1</span></div>
+                <div style="font-size: 10px; color: #888; margin-bottom: 5px;">Click stations to add stops</div>
+                <ul id="route-stops-list" style="list-style: none; padding: 0; margin: 0 0 10px 0; font-size: 11px;">
+                    <!-- Stops -->
+                </ul>
+                <div style="display: flex; gap: 5px;">
+                    <button id="btn-finish-route" class="success" style="flex: 1; font-size: 11px;">Done</button>
+                    <button id="btn-delete-route" class="danger" style="flex: 1; font-size: 11px;">Delete</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Train Details Panel (Hidden by default) -->
+        <div id="train-details-panel" class="glass-panel"
+            style="display: none; position: absolute; top: 60px; left: 20px; width: 220px; z-index: 100;">
+            <div
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 5px;">
+                <span style="font-weight: bold;">🚂 Train Details</span>
+                <button id="btn-close-train-details"
+                    style="background: none; border: none; color: #aaa; cursor: pointer;">✕</button>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <div style="font-size: 12px; color: #aaa;">Type</div>
+                <div id="train-details-type" style="font-weight: bold; font-size: 14px;">Normal Train</div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px;">
+                <div>
+                    <div style="font-size: 10px; color: #aaa;">Cargo</div>
+                    <div id="train-details-cargo" style="font-weight: bold;">None</div>
+                </div>
+                <div>
+                    <div style="font-size: 10px; color: #aaa;">Speed</div>
+                    <div id="train-details-speed" style="font-weight: bold;">1.0</div>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <div style="font-size: 12px; color: #aaa; margin-bottom: 5px;">Assigned Route</div>
+                <select id="train-route-select"
+                    style="width: 100%; padding: 5px; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); color: white; border-radius: 4px;">
+                    <option value="">None</option>
+                </select>
+            </div>
+
+            <button id="btn-sell-train" class="danger" style="width: 100%;">Sell Train ($<span
+                    id="train-sell-value">0</span>)</button>
+        </div>
+
+        <!-- Route Toggle Button (in Toolbar) -->
+        <div style="position: absolute; bottom: 20px; right: 20px;">
+            <button id="btn-toggle-routes" class="glass-panel"
+                style="padding: 10px; border-radius: 50%; width: 50px; height: 50px; font-size: 24px; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                🛤️
+            </button>
+        </div>
     </div>
 
     <!-- Tooltip -->
@@ -188,6 +274,8 @@
                 <button id="tool-iron" class="editor-btn">Iron</button>
                 <button id="tool-steel" class="editor-btn">Steel</button>
                 <button id="tool-factory" class="editor-btn">Factory</button>
+                <button id="tool-lumber" class="editor-btn">Lumber</button>
+                <button id="tool-sawmill" class="editor-btn">Sawmill</button>
             </div>
         </div>
 

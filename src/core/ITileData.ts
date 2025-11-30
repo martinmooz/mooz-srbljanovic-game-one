@@ -7,7 +7,7 @@ export interface ITileData {
     bitmaskValue: number;
     segmentID?: string | null;
     stationType?: string; // 'CITY', 'INDUSTRY', 'RESOURCE'
-    terrainType?: 'GRASS' | 'WATER' | 'FOREST' | 'MOUNTAIN';
+    terrainType?: 'GRASS' | 'WATER' | 'FOREST' | 'MOUNTAIN' | 'DESERT' | 'SNOW';
     produces?: string[]; // Cargo types this station sells
     accepts?: string[]; // Cargo types this station buys
 }

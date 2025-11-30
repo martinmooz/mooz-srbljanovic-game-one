@@ -44,30 +44,52 @@ export class MapManager {
     }
 
     private generateTerrain(): void {
-        // Simple cellular automata or random clusters
-        const numForests = 15;
-        const numLakes = 5;
-        const numMountains = 3;
+        // 1. Generate Biomes (Temperature / Moisture)
+        // Simple noise simulation
+        const noiseScale = 0.1;
+        for (let y = 0; y < this.height; y++) {
+            for (let x = 0; x < this.width; x++) {
+                const tile = this.grid[y][x];
+                // Simple pseudo-noise
+                const noise = Math.sin(x * noiseScale) + Math.cos(y * noiseScale) + Math.random() * 0.5;
 
-        // Forests
+                if (noise > 1.2) {
+                    tile.terrainType = 'SNOW';
+                } else if (noise < -0.5) {
+                    tile.terrainType = 'DESERT';
+                } else {
+                    tile.terrainType = 'GRASS';
+                }
+            }
+        }
+
+        // 2. Add Features based on Biome
+        const numForests = 20;
+        const numLakes = 8;
+        const numMountains = 8;
+
+        // Forests (Pine in Snow, Cactus in Desert?)
         for (let i = 0; i < numForests; i++) {
             let cx = Math.floor(Math.random() * this.width);
             let cy = Math.floor(Math.random() * this.height);
             this.growCluster(cx, cy, 'FOREST', 0.6, 5);
         }
 
-        // Water
+        // Water (Rare in Desert)
         for (let i = 0; i < numLakes; i++) {
             let cx = Math.floor(Math.random() * this.width);
             let cy = Math.floor(Math.random() * this.height);
-            this.growCluster(cx, cy, 'WATER', 0.7, 8);
+            const tile = this.getTile(cx, cy);
+            if (tile && tile.terrainType !== 'DESERT') {
+                this.growCluster(cx, cy, 'WATER', 0.7, 8);
+            }
         }
 
-        // Mountains
+        // Mountains (Common in Snow)
         for (let i = 0; i < numMountains; i++) {
             let cx = Math.floor(Math.random() * this.width);
             let cy = Math.floor(Math.random() * this.height);
-            this.growCluster(cx, cy, 'MOUNTAIN', 0.8, 4);
+            this.growCluster(cx, cy, 'MOUNTAIN', 0.8, 6); // Larger mountains
         }
     }
 
@@ -109,6 +131,8 @@ export class MapManager {
         this.forcePlaceStation('CITY');
         this.forcePlaceStation('COAL_MINE');
         this.forcePlaceStation('STEEL_MILL');
+        this.forcePlaceStation('LUMBER_CAMP');
+        this.forcePlaceStation('SAWMILL');
     }
 
     private forcePlaceStation(type: string): void {
@@ -152,7 +176,23 @@ export class MapManager {
                 break;
             case 'CITY':
                 tile.produces = [CargoType.PASSENGERS];
-                tile.accepts = [CargoType.TOOLS, CargoType.GOODS, CargoType.PASSENGERS];
+                tile.accepts = [CargoType.TOOLS, CargoType.GOODS, CargoType.PASSENGERS, CargoType.LUMBER];
+                break;
+            case 'LUMBER_CAMP':
+                tile.produces = [CargoType.WOOD];
+                tile.accepts = [CargoType.PASSENGERS];
+                break;
+            case 'SAWMILL':
+                tile.produces = [CargoType.LUMBER];
+                tile.accepts = [CargoType.WOOD];
+                break;
+            case 'OIL_WELL':
+                tile.produces = [CargoType.OIL];
+                tile.accepts = [CargoType.PASSENGERS]; // Workers
+                break;
+            case 'GOLD_MINE':
+                tile.produces = [CargoType.GOLD];
+                tile.accepts = [CargoType.TOOLS, CargoType.PASSENGERS];
                 break;
         }
     }
@@ -187,7 +227,7 @@ export class MapManager {
             return false; // Cannot build on water or mountains yet
         }
 
-        let cost = 50;
+        let cost = 20;
         if (tile.terrainType === 'FOREST') {
             cost += 20; // Extra cost to clear forest
         }
@@ -215,7 +255,7 @@ export class MapManager {
         return true;
     }
 
-    public placeStation(x: number, y: number, economy?: EconomyManager): boolean {
+    public placeStation(x: number, y: number, economy?: EconomyManager, level: number = 1): boolean {
         const tile = this.getTile(x, y);
         if (!tile) return false;
 
@@ -227,7 +267,7 @@ export class MapManager {
         }
 
         // Cost for station
-        let cost = 200;
+        let cost = 100;
         if (tile.terrainType === 'FOREST') {
             cost += 50; // Clearing cost
         }
@@ -243,8 +283,30 @@ export class MapManager {
         tile.trackType = 'station';
 
         // Assign Random Station Type
-        const types = ['COAL_MINE', 'IRON_MINE', 'STEEL_MILL', 'TOOL_FACTORY', 'CITY'];
-        const type = types[Math.floor(Math.random() * types.length)];
+        // Assign Random Station Type
+        const types = ['COAL_MINE', 'IRON_MINE', 'CITY', 'LUMBER_CAMP', 'SAWMILL'];
+
+        // Biome-specific industries
+        if (tile.terrainType === 'DESERT') {
+            types.push('OIL_WELL');
+        } else if (tile.terrainType === 'SNOW') {
+            types.push('GOLD_MINE');
+        }
+
+        if (level >= 4) {
+            types.push('STEEL_MILL', 'TOOL_FACTORY');
+        }
+
+        // Filter out biome-mismatched types if we want strict rules?
+        // For now, let's just prioritize biome ones or mix them.
+        // Actually, let's ensure Oil only in Desert and Gold only in Snow.
+
+        let validTypes = types;
+        if (tile.terrainType === 'DESERT') {
+            // Maybe restrict standard mines in desert? No, it's fine.
+        }
+
+        const type = validTypes[Math.floor(Math.random() * validTypes.length)];
         tile.stationType = type;
         this.configureStationType(tile, type);
 

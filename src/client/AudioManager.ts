@@ -119,6 +119,27 @@ export class AudioManager {
                 osc.start(t);
                 osc.stop(t + 0.05);
                 break;
+
+            case 'levelUp':
+                // Fanfare
+                this.playNote(523.25, t, 0.1, 'square'); // C5
+                this.playNote(659.25, t + 0.1, 0.1, 'square'); // E5
+                this.playNote(783.99, t + 0.2, 0.1, 'square'); // G5
+                this.playNote(1046.50, t + 0.3, 0.6, 'square'); // C6
+                // Harmony
+                this.playNote(329.63, t, 0.4, 'triangle'); // E4
+                this.playNote(392.00, t + 0.2, 0.4, 'triangle'); // G4
+                break;
+
+            case 'error':
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(150, t);
+                osc.frequency.linearRampToValueAtTime(100, t + 0.2);
+                gain.gain.setValueAtTime(this.volume * 0.5, t); // Louder
+                gain.gain.exponentialRampToValueAtTime(0.01, t + 0.3);
+                osc.start(t);
+                osc.stop(t + 0.3);
+                break;
         }
     }
 

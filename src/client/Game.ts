@@ -23,6 +23,8 @@ import { ProgressionManager } from './ProgressionManager';
 import { GoalManager } from './GoalManager';
 import { EventManager } from './EventManager';
 import { Camera } from './Camera';
+import { ChartManager } from './ChartManager';
+import { RouteManager } from './RouteManager'; // NEW: Route Manager // NEW: Statistics charts
 
 export class Game {
     public map: MapManager;
@@ -52,6 +54,8 @@ export class Game {
     public goalManager: GoalManager;
     public eventManager: EventManager;
     public camera: Camera;
+    public chartManager: ChartManager;
+    public routeManager: RouteManager; // NEW: Route Manager // NEW: Revenue charts and statistics
 
     // Input state
     private keys: { [key: string]: boolean } = {};
@@ -59,7 +63,15 @@ export class Game {
     private dragStartTile: { x: number, y: number } | null = null;
     private dragEndTile: { x: number, y: number } | null = null;
     private currentMouseTile: { x: number, y: number } | null = null;
+    private selectedTrain: TrainActor | null = null;
     private lastBuildAction: { path: { x: number, y: number }[], cost: number } | null = null;
+
+    // Statistics tracking
+    private lastDay: number = 0;
+    private revenueAtStartOfDay: number = 0;
+
+    // Route Editing State
+    private editingRouteId: string | null = null;
 
     constructor() {
         const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
@@ -67,7 +79,7 @@ export class Game {
         this.map = new MapManager(20, 15); // Fixed size for MVP
         this.trains = [];
         this.revenueSimulator = new RevenueSimulator();
-        this.economy = new EconomyManager(1000); // Start with $1000
+        this.economy = new EconomyManager(2500); // Start with $2500
         this.timeManager = new TimeManager();
         this.notificationManager = new NotificationManager();
         this.statisticsManager = new StatisticsManager();
@@ -81,9 +93,11 @@ export class Game {
         this.menuManager = new MenuManager();
         this.victoryManager = new VictoryManager();
         this.progressionManager = new ProgressionManager();
-        this.goalManager = new GoalManager();
+        this.goalManager = new GoalManager(this.progressionManager);
         this.eventManager = new EventManager();
         this.camera = new Camera(0, 0);
+        this.chartManager = new ChartManager(this.statisticsManager);
+        this.routeManager = new RouteManager(); // NEW: Initialize Route Manager // NEW: Initialize chart manager
 
         this.editorManager = new EditorManager(this);
         this.lastTime = performance.now();
@@ -102,6 +116,8 @@ export class Game {
 
         this.setupInput(canvas);
         this.setupUIControls();
+        this.setupRouteUI(); // NEW: Setup Route UI
+        this.setupTrainDetailsUI(); // NEW: Setup Train Details UI
         this.setupMenuCallbacks();
         this.setupVictoryCallbacks();
         this.editorManager.setupUI();
@@ -229,17 +245,28 @@ export class Game {
         });
 
         // Train type selection
+        // Train type selection
         document.getElementById('btn-train-normal')?.addEventListener('click', () => {
             this.selectedTrainType = TrainType.NORMAL;
             this.updateUI();
         });
         document.getElementById('btn-train-fast')?.addEventListener('click', () => {
-            this.selectedTrainType = TrainType.FAST;
-            this.updateUI();
+            if (this.progressionManager.getLevel() >= TrainTypeManager.getTrainInfo(TrainType.FAST).unlockLevel) {
+                this.selectedTrainType = TrainType.FAST;
+                this.updateUI();
+            }
         });
         document.getElementById('btn-train-heavy')?.addEventListener('click', () => {
-            this.selectedTrainType = TrainType.HEAVY;
-            this.updateUI();
+            if (this.progressionManager.getLevel() >= TrainTypeManager.getTrainInfo(TrainType.HEAVY).unlockLevel) {
+                this.selectedTrainType = TrainType.HEAVY;
+                this.updateUI();
+            }
+        });
+        document.getElementById('btn-train-express')?.addEventListener('click', () => {
+            if (this.progressionManager.getLevel() >= TrainTypeManager.getTrainInfo(TrainType.EXPRESS).unlockLevel) {
+                this.selectedTrainType = TrainType.EXPRESS;
+                this.updateUI();
+            }
         });
 
         // Stats panel toggle
@@ -297,7 +324,27 @@ export class Game {
                 this.timeManager.getGameTimeDays(),
                 cargoType
             );
+
+            // Assign Route if editing
+            if (this.editingRouteId) {
+                const route = this.routeManager.getRoute(this.editingRouteId);
+                if (route && route.stops.length > 0) {
+                    train.assignedRoute = route;
+                    this.notificationManager.addNotification(`Assigned to ${route.name}`, this.selectedSpawnStation.x, this.selectedSpawnStation.y - 1, route.color);
+                }
+            }
+
             this.trains.push(train);
+
+            console.log(`Train added! Total trains: ${this.trains.length}`);
+
+            // FIX: Explicitly update train count in UI immediately
+            const trainCountElement = document.getElementById('train-count');
+            if (trainCountElement) {
+                trainCountElement.innerText = this.trains.length.toString();
+                console.log('Train count UI updated to:', this.trains.length);
+            }
+
             this.updateUI();
             this.audioManager.playSound('build');
             this.audioManager.playSound('build');
@@ -305,6 +352,7 @@ export class Game {
 
             // Update Goal
             this.goalManager.updateProgress('trains', 1);
+            this.checkGoalCompletion();
 
             // Emit dust/smoke
             this.particleManager.emit(ParticleType.SMOKE, this.selectedSpawnStation.x, this.selectedSpawnStation.y, 10);
@@ -313,6 +361,9 @@ export class Game {
             if (!this.tutorialManager.isCompleted() && this.tutorialManager.getCurrentStep() === 1) {
                 this.tutorialManager.nextStep();
             }
+
+            // Success notification
+            this.notificationManager.addNotification('Train spawned! 🚂', this.selectedSpawnStation.x, this.selectedSpawnStation.y, '#51CF66');
         } else {
             this.notificationManager.addNotification('Not enough money!', this.selectedSpawnStation.x, this.selectedSpawnStation.y, '#FF0000');
             this.audioManager.playSound('error');
@@ -336,6 +387,43 @@ export class Game {
             }
 
             if (e.button === 0) { // Left Click: Start Drag
+                // Check if clicking on a train
+                let clickedTrain = false;
+                for (const train of this.trains) {
+                    const visualPos = train.getVisualPosition();
+                    // Check distance in world coordinates
+                    const cx = canvas.width / 2;
+                    const cy = canvas.height / 2;
+                    const worldX = (x - cx) / this.camera.zoom + cx + this.camera.x;
+                    const worldY = (y - cy) / this.camera.zoom + cy + this.camera.y;
+
+                    const trainWorldX = (visualPos.x + 0.5) * 40;
+                    const trainWorldY = (visualPos.y + 0.5) * 40;
+
+                    const dx = worldX - trainWorldX;
+                    const dy = worldY - trainWorldY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+
+                    if (dist < 20) { // Within 20px (world space)
+                        this.selectedTrain = train;
+                        this.updateTrainDetailsUI();
+                        clickedTrain = true;
+                        this.audioManager.playSound('click');
+                        break;
+                    }
+                }
+
+                if (clickedTrain) return;
+
+                // Deselect train if clicking elsewhere
+                if (this.selectedTrain) {
+                    this.selectedTrain = null;
+                    this.updateTrainDetailsUI();
+                }
+
+                // If editing route, don't drag
+                if (this.editingRouteId) return;
+
                 this.isDragging = true;
                 this.dragStartTile = { x: tile.x, y: tile.y };
                 this.dragEndTile = { x: tile.x, y: tile.y };
@@ -404,6 +492,23 @@ export class Game {
         });
 
         window.addEventListener('mouseup', (e) => {
+            // Route Editing Click
+            if (this.editingRouteId) {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                const tile = this.renderer.getTileFromScreen(x, y, this.camera);
+                const tileData = this.map.getTile(tile.x, tile.y);
+
+                if (tileData && tileData.trackType === 'station') {
+                    this.routeManager.addStop(this.editingRouteId, tile.x, tile.y);
+                    this.updateRouteEditorUI();
+                    this.audioManager.playSound('click');
+                    this.particleManager.emit(ParticleType.SPARKLE, tile.x + 0.5, tile.y + 0.5, 5);
+                }
+                return;
+            }
+
             if (this.isDragging && this.dragStartTile && this.dragEndTile) {
                 // Execute Build
                 const path = this.map.getTrackPath(this.dragStartTile, this.dragEndTile);
@@ -414,10 +519,15 @@ export class Game {
                     // Store last build for undo
                     this.lastBuildAction = {
                         path: path,
-                        cost: path.length * 50
+                        cost: path.length * 20
                     };
 
                     this.updateUI();
+                    this.goalManager.updateProgress('tracks', path.length);
+                    this.checkGoalCompletion();
+                } else {
+                    this.audioManager.playSound('error');
+                    this.notificationManager.addNotification('Not Enough Money!', this.dragEndTile.x, this.dragEndTile.y, '#FF0000');
                 }
             }
             this.isDragging = false;
@@ -433,7 +543,7 @@ export class Game {
                 // Place Station
                 if (this.currentMouseTile) {
                     const tile = this.currentMouseTile;
-                    if (this.map.placeStation(tile.x, tile.y, this.economy)) {
+                    if (this.map.placeStation(tile.x, tile.y, this.economy, this.progressionManager.getLevel())) {
                         this.audioManager.playSound('build');
                         this.particleManager.emit(ParticleType.DUST, tile.x + 0.5, tile.y + 0.5, 12);
 
@@ -443,6 +553,9 @@ export class Game {
                             this.notificationManager.addNotification('Spawn Point Set!', tile.x, tile.y, '#00FF00');
                         }
                         this.updateUI();
+                    } else {
+                        this.audioManager.playSound('error');
+                        this.notificationManager.addNotification('Cannot Build Here!', tile.x, tile.y, '#FF0000');
                     }
                 }
             } else if (e.code === 'KeyE') {
@@ -538,7 +651,7 @@ export class Game {
                 // Reset game state
                 this.trains = [];
                 this.selectedSpawnStation = null; // Clear spawn selection
-                this.economy = new EconomyManager(1000);
+                this.economy = new EconomyManager(2500);
                 this.timeManager = new TimeManager();
 
                 // CRITICAL: Regenerate map to clear previous game's tracks/stations
@@ -583,11 +696,14 @@ export class Game {
                 this.isPaused = false;
                 // Reset game state
                 this.trains = [];
-                this.economy = new EconomyManager(1000);
+                this.economy = new EconomyManager(2500);
                 this.timeManager = new TimeManager();
                 this.statisticsManager = new StatisticsManager();
                 this.map = new MapManager(20, 15); // Reset map
                 this.updateUI();
+                this.map = new MapManager(20, 15); // Reset map
+                this.updateUI();
+                this.checkGoalCompletion();
             },
             onMainMenu: () => {
                 this.victoryManager.hide();
@@ -611,7 +727,11 @@ export class Game {
         if (levelDisplay) levelDisplay.innerText = this.progressionManager.getLevel().toString();
 
         const xpDisplay = document.getElementById('xp-display');
-        if (xpDisplay) xpDisplay.innerText = `${this.progressionManager.getXp()} / ${this.progressionManager.getNextLevelXp()}`;
+        if (xpDisplay) {
+            const currentXp = this.progressionManager.getXp();
+            const nextLevelXp = this.progressionManager.getNextLevelXp() || 1000; // FIX: Default value if undefined
+            xpDisplay.innerText = `${currentXp} / ${nextLevelXp}`;
+        }
 
         // Stats
         const stats = this.statisticsManager.getStats();
@@ -626,6 +746,18 @@ export class Game {
 
         const achCount = document.getElementById('achievement-count');
         if (achCount) achCount.innerText = this.achievementManager.getUnlockedCount().toString();
+
+        // Render Chart if visible
+        const statsPanel = document.getElementById('stats-panel');
+        if (statsPanel && statsPanel.style.display !== 'none') {
+            const canvas = document.getElementById('revenue-chart') as HTMLCanvasElement;
+            if (canvas) {
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    this.chartManager.renderMiniChart(ctx, 0, 0, canvas.width, canvas.height);
+                }
+            }
+        }
 
         // Spawn Station
         const spawnStation = document.getElementById('spawn-station');
@@ -649,17 +781,40 @@ export class Game {
         const btnNormal = document.getElementById('btn-train-normal');
         const btnFast = document.getElementById('btn-train-fast');
         const btnHeavy = document.getElementById('btn-train-heavy');
+        const btnExpress = document.getElementById('btn-train-express');
 
         if (btnNormal) btnNormal.classList.toggle('active', this.selectedTrainType === TrainType.NORMAL);
-        if (btnFast) btnFast.classList.toggle('active', this.selectedTrainType === TrainType.FAST);
-        if (btnHeavy) btnHeavy.classList.toggle('active', this.selectedTrainType === TrainType.HEAVY);
+
+        if (btnFast) {
+            const unlocked = this.progressionManager.getLevel() >= TrainTypeManager.getTrainInfo(TrainType.FAST).unlockLevel;
+            btnFast.classList.toggle('active', this.selectedTrainType === TrainType.FAST);
+            btnFast.style.opacity = unlocked ? '1' : '0.3';
+            btnFast.style.cursor = unlocked ? 'pointer' : 'not-allowed';
+            if (!unlocked) btnFast.title = `Unlocks at Level ${TrainTypeManager.getTrainInfo(TrainType.FAST).unlockLevel}`;
+        }
+
+        if (btnHeavy) {
+            const unlocked = this.progressionManager.getLevel() >= TrainTypeManager.getTrainInfo(TrainType.HEAVY).unlockLevel;
+            btnHeavy.classList.toggle('active', this.selectedTrainType === TrainType.HEAVY);
+            btnHeavy.style.opacity = unlocked ? '1' : '0.3';
+            btnHeavy.style.cursor = unlocked ? 'pointer' : 'not-allowed';
+            if (!unlocked) btnHeavy.title = `Unlocks at Level ${TrainTypeManager.getTrainInfo(TrainType.HEAVY).unlockLevel}`;
+        }
+
+        if (btnExpress) {
+            const unlocked = this.progressionManager.getLevel() >= TrainTypeManager.getTrainInfo(TrainType.EXPRESS).unlockLevel;
+            btnExpress.classList.toggle('active', this.selectedTrainType === TrainType.EXPRESS);
+            btnExpress.style.opacity = unlocked ? '1' : '0.3';
+            btnExpress.style.cursor = unlocked ? 'pointer' : 'not-allowed';
+            if (!unlocked) btnExpress.title = `Unlocks at Level ${TrainTypeManager.getTrainInfo(TrainType.EXPRESS).unlockLevel}`;
+        }
     }
 
     private updateBuildCostPreview(): void {
         if (!this.dragStartTile || !this.dragEndTile) return;
 
         const path = this.map.getTrackPath(this.dragStartTile, this.dragEndTile);
-        const cost = path.length * 50; // $50 per track tile
+        const cost = path.length * 20; // $20 per track tile
 
         const preview = document.getElementById('build-cost-preview');
         const amount = document.getElementById('build-cost-amount');
@@ -671,6 +826,12 @@ export class Game {
             // Red if insufficient funds
             const canAfford = this.economy.getBalance() >= cost;
             amount.style.color = canAfford ? '#51CF66' : '#FF6B6B';
+
+            if (!canAfford) {
+                // Pulse red
+                amount.style.transform = 'scale(1.1)';
+                setTimeout(() => amount.style.transform = 'scale(1)', 100);
+            }
         }
     }
 
@@ -727,6 +888,31 @@ export class Game {
         this.updateUI();
     }
 
+    private checkGoalCompletion(): void {
+        const reward = this.goalManager.checkCompletion();
+        if (reward > 0) {
+            this.economy.add(reward);
+            this.audioManager.playSound('achievement');
+            const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
+            const cx = canvas ? canvas.width / 2 : window.innerWidth / 2;
+            const cy = canvas ? canvas.height / 2 : window.innerHeight / 2;
+
+            this.notificationManager.addNotification(`Goal Complete! +$${reward}`, cx, cy, '#FFD700');
+
+            // Also give XP
+            const xp = Math.floor(reward / 10);
+            const result = this.progressionManager.addXp(xp);
+            for (const msg of result.notifications) {
+                this.notificationManager.addNotification(msg, cx, cy - 30, '#51CF66');
+            }
+            if (result.leveledUp) {
+                this.audioManager.playSound('levelUp');
+                this.particleManager.emit(ParticleType.LEVEL_UP, cx, cy, 50);
+            }
+            this.updateUI();
+        }
+    }
+
     private loop() {
         const now = performance.now();
         let deltaTime = (now - this.lastTime) / 1000; // Seconds
@@ -776,6 +962,20 @@ export class Game {
         // Update Time
         this.timeManager.tick(deltaTime);
 
+        // Track Daily Revenue
+        const currentDay = Math.floor(this.timeManager.getGameTimeDays());
+        if (currentDay > this.lastDay) {
+            const currentTotalRevenue = this.statisticsManager.getStats().totalRevenue;
+            const dailyRevenue = currentTotalRevenue - this.revenueAtStartOfDay;
+
+            this.chartManager.recordDailyRevenue(this.lastDay, dailyRevenue);
+
+            this.lastDay = currentDay;
+            this.revenueAtStartOfDay = currentTotalRevenue;
+
+            console.log(`📅 Day ${currentDay} started. Yesterday's revenue: $${dailyRevenue}`);
+        }
+
         // Update Market Prices
         try {
             // Update Market Prices
@@ -822,11 +1022,23 @@ export class Game {
 
                 // Check for station arrival
                 const tile = this.map.getTile(train.x, train.y);
-                if (tile && tile.trackType === 'station') {
+                if (tile && tile.trackType === 'station' && !train.hasDelivered) {
+                    // FIX: Prevent immediate delivery at spawn station
+                    const isAtSpawnStation = (train.x === train.startX && train.y === train.startY);
+                    if (isAtSpawnStation) {
+                        // Skip revenue generation at spawn station
+                        continue;
+                    }
+
+                    // Mark as delivered to prevent duplicate revenue
+                    train.hasDelivered = true;
+
+                    console.log(`🚂 Train delivering at (${train.x}, ${train.y}) from spawn (${train.startX}, ${train.startY})`);
+
                     // Delivery!
                     // Calculate revenue. 
-                    // Distance: Manhattan from (0,0) (spawn) to current.
-                    const dist = Math.abs(train.x - 0) + Math.abs(train.y - 0);
+                    // FIX: Distance from spawn station, not (0,0)
+                    const dist = Math.abs(train.x - train.startX) + Math.abs(train.y - train.startY);
 
                     // Time in transit
                     const arrivalTime = this.timeManager.getGameTimeDays();
@@ -857,13 +1069,19 @@ export class Game {
 
                         // Add XP
                         const xpGained = Math.floor(revenue / 10);
-                        const levelUps = this.progressionManager.addXp(xpGained);
+                        const result = this.progressionManager.addXp(xpGained);
 
                         // Notify level ups
-                        for (const msg of levelUps) {
+                        for (const msg of result.notifications) {
                             this.notificationManager.addNotification(msg, train.x, train.y - 2, '#00FFFF');
-                            this.audioManager.playSound('achievement'); // Reuse achievement sound
-                            this.particleManager.emit(ParticleType.STAR, train.x, train.y, 30);
+                        }
+
+                        if (result.leveledUp) {
+                            this.audioManager.playSound('levelUp');
+                            this.particleManager.emit(ParticleType.LEVEL_UP, train.x, train.y, 50);
+
+                            // Screen shake or big notification?
+                            // For now, just the particles and sound are good.
                         }
                     }
 
@@ -909,13 +1127,22 @@ export class Game {
                         '#FFD700'
                     );
                     this.audioManager.playSound('delivery');
+
+                    // ENHANCED: Multiple particle effects for revenue
                     this.particleManager.emit(ParticleType.SPARKLE, train.x + 0.5, train.y + 0.5, 15);
+                    this.particleManager.emit(ParticleType.MONEY, train.x + 0.5, train.y + 0.5, 8); // Floating $ signs
 
                     this.economy.add(revenue);
 
+                    console.log(`💰 Revenue added: $${Math.floor(revenue)}, New balance: $${this.economy.getBalance()}`);
+
                     // Update Goals
                     this.goalManager.updateProgress('delivery', 1);
+                    if (train.cargoType === CargoType.PASSENGERS) {
+                        this.goalManager.updateProgress('passengers', 1);
+                    }
                     this.goalManager.updateProgress('money', this.statisticsManager.getStats().totalRevenue);
+                    this.checkGoalCompletion();
 
                     this.updateUI();
 
@@ -971,7 +1198,8 @@ export class Game {
                 this.selectedSpawnStation,
                 this.timeManager.getGameTimeDays(),
                 this.eventManager,
-                this.isDragging ? null : this.currentMouseTile
+                this.isDragging ? null : this.currentMouseTile,
+                this.editingRouteId ? this.routeManager.getRoute(this.editingRouteId) : null // Pass active route
             );    // Render Ghost Tracks if dragging
             if (this.isDragging && this.dragStartTile && this.dragEndTile) {
                 const path = this.map.getTrackPath(this.dragStartTile, this.dragEndTile);
@@ -985,6 +1213,234 @@ export class Game {
         }
 
         requestAnimationFrame(() => this.loop());
+    }
+
+    private setupRouteUI(): void {
+        const panel = document.getElementById('route-panel');
+        const btnToggle = document.getElementById('btn-toggle-routes');
+        const btnClose = document.getElementById('btn-close-routes');
+        const btnNew = document.getElementById('btn-new-route');
+        const btnFinish = document.getElementById('btn-finish-route');
+        const btnDelete = document.getElementById('btn-delete-route');
+
+        if (btnToggle && panel) {
+            btnToggle.addEventListener('click', () => {
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                this.updateRouteListUI();
+            });
+        }
+
+        if (btnClose && panel) {
+            btnClose.addEventListener('click', () => {
+                panel.style.display = 'none';
+                this.editingRouteId = null;
+                this.updateRouteEditorUI();
+            });
+        }
+
+        if (btnNew) {
+            btnNew.addEventListener('click', () => {
+                const route = this.routeManager.createRoute(`Route ${this.routeManager.getAllRoutes().length + 1}`, '#FF00FF');
+                this.editingRouteId = route.id;
+                this.updateRouteListUI();
+                this.updateRouteEditorUI();
+            });
+        }
+
+        if (btnFinish) {
+            btnFinish.addEventListener('click', () => {
+                this.editingRouteId = null;
+                this.updateRouteEditorUI();
+                this.updateRouteListUI();
+            });
+        }
+
+        if (btnDelete) {
+            btnDelete.addEventListener('click', () => {
+                if (this.editingRouteId) {
+                    this.routeManager.deleteRoute(this.editingRouteId);
+                    this.editingRouteId = null;
+                    this.updateRouteEditorUI();
+                    this.updateRouteListUI();
+                }
+            });
+        }
+    }
+
+    private updateRouteListUI(): void {
+        const list = document.getElementById('route-list');
+        if (!list) return;
+
+        list.innerHTML = '';
+        const routes = this.routeManager.getAllRoutes();
+
+        if (routes.length === 0) {
+            list.innerHTML = '<div style="text-align: center; color: #888; font-size: 12px; padding: 10px;">No routes created</div>';
+            return;
+        }
+
+        routes.forEach(route => {
+            const div = document.createElement('div');
+            div.style.padding = '8px';
+            div.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+            div.style.cursor = 'pointer';
+            div.style.backgroundColor = this.editingRouteId === route.id ? 'rgba(255,255,255,0.1)' : 'transparent';
+
+            div.innerHTML = `
+                <div style="font-weight: bold; color: ${route.color};">${route.name}</div>
+                <div style="font-size: 10px; color: #aaa;">${route.stops.length} stops</div>
+            `;
+
+            div.addEventListener('click', () => {
+                this.editingRouteId = route.id;
+                this.updateRouteListUI();
+                this.updateRouteEditorUI();
+            });
+
+            list.appendChild(div);
+        });
+    }
+
+    private updateRouteEditorUI(): void {
+        const editor = document.getElementById('active-route-editor');
+        const btnNew = document.getElementById('btn-new-route');
+
+        if (!editor || !btnNew) return;
+
+        if (this.editingRouteId) {
+            editor.style.display = 'block';
+            btnNew.style.display = 'none';
+
+            const route = this.routeManager.getRoute(this.editingRouteId);
+            if (route) {
+                const nameEl = document.getElementById('editing-route-name');
+                if (nameEl) nameEl.innerText = route.name;
+
+                const stopsList = document.getElementById('route-stops-list');
+                if (stopsList) {
+                    stopsList.innerHTML = '';
+                    route.stops.forEach((stop, index) => {
+                        const li = document.createElement('li');
+                        li.style.padding = '4px 0';
+                        li.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+                        li.innerHTML = `
+                            <span style="color: #aaa;">${index + 1}.</span> 
+                            Stop at (${stop.x}, ${stop.y})
+                            <button class="delete-stop-btn" style="float: right; background: none; border: none; color: #FF6B6B; cursor: pointer;">✕</button>
+                        `;
+
+                        // Delete stop button
+                        const btn = li.querySelector('.delete-stop-btn');
+                        if (btn) {
+                            btn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                this.routeManager.removeStop(route.id, index);
+                                this.updateRouteEditorUI();
+                                this.updateRouteListUI();
+                            });
+                        }
+
+                        stopsList.appendChild(li);
+                    });
+                }
+            }
+        } else {
+            editor.style.display = 'none';
+            btnNew.style.display = 'block';
+        }
+    }
+
+    private setupTrainDetailsUI(): void {
+        const panel = document.getElementById('train-details-panel');
+        const btnClose = document.getElementById('btn-close-train-details');
+        const routeSelect = document.getElementById('train-route-select') as HTMLSelectElement;
+        const btnSell = document.getElementById('btn-sell-train');
+
+        if (btnClose && panel) {
+            btnClose.addEventListener('click', () => {
+                panel.style.display = 'none';
+                this.selectedTrain = null;
+            });
+        }
+
+        if (routeSelect) {
+            routeSelect.addEventListener('change', (e) => {
+                if (this.selectedTrain) {
+                    const routeId = (e.target as HTMLSelectElement).value;
+                    if (routeId) {
+                        const route = this.routeManager.getRoute(routeId);
+                        if (route) {
+                            this.selectedTrain.assignedRoute = route;
+                            this.notificationManager.addNotification(`Assigned to ${route.name}`, this.selectedTrain.x, this.selectedTrain.y - 1, route.color);
+                        }
+                    } else {
+                        this.selectedTrain.assignedRoute = null;
+                        this.notificationManager.addNotification(`Route Cleared`, this.selectedTrain.x, this.selectedTrain.y - 1, '#FFFFFF');
+                    }
+                }
+            });
+        }
+
+        if (btnSell) {
+            btnSell.addEventListener('click', () => {
+                if (this.selectedTrain) {
+                    const value = Math.floor(TrainTypeManager.getTrainInfo(this.selectedTrain.trainType).cost * 0.75);
+                    this.economy.add(value);
+                    this.audioManager.playSound('sell');
+                    this.particleManager.emit(ParticleType.SPARKLE, this.selectedTrain.x, this.selectedTrain.y, 10);
+
+                    // Remove train
+                    const index = this.trains.indexOf(this.selectedTrain);
+                    if (index > -1) {
+                        this.trains.splice(index, 1);
+                    }
+
+                    this.selectedTrain = null;
+                    if (panel) panel.style.display = 'none';
+                    this.updateUI();
+                }
+            });
+        }
+    }
+
+    private updateTrainDetailsUI(): void {
+        const panel = document.getElementById('train-details-panel');
+        if (!panel || !this.selectedTrain) {
+            if (panel) panel.style.display = 'none';
+            return;
+        }
+
+        panel.style.display = 'block';
+
+        const typeEl = document.getElementById('train-details-type');
+        const cargoEl = document.getElementById('train-details-cargo');
+        const speedEl = document.getElementById('train-details-speed');
+        const sellValEl = document.getElementById('train-sell-value');
+        const routeSelect = document.getElementById('train-route-select') as HTMLSelectElement;
+
+        const info = TrainTypeManager.getTrainInfo(this.selectedTrain.trainType);
+        const cargoInfo = CargoTypeManager.getCargoInfo(this.selectedTrain.cargoType);
+
+        if (typeEl) typeEl.innerText = info.name;
+        if (cargoEl) cargoEl.innerText = cargoInfo.name;
+        if (speedEl) speedEl.innerText = info.speed.toFixed(1);
+        if (sellValEl) sellValEl.innerText = Math.floor(info.cost * 0.75).toString();
+
+        // Update Route Select
+        if (routeSelect) {
+            routeSelect.innerHTML = '<option value="">None</option>';
+            const routes = this.routeManager.getAllRoutes();
+            routes.forEach(route => {
+                const option = document.createElement('option');
+                option.value = route.id;
+                option.innerText = route.name;
+                option.style.color = route.color;
+                if (this.selectedTrain?.assignedRoute?.id === route.id) {
+                    option.selected = true;
+                }
+                routeSelect.appendChild(option);
+            });
+        }
     }
 }
 
