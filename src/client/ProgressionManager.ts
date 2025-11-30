@@ -95,6 +95,10 @@ export class ProgressionManager {
         }
     }
 
+    public loadFromSave(data: any) {
+        this.loadData(data);
+    }
+
     private load() {
         const dataStr = localStorage.getItem('railsim_progression');
         if (dataStr) {

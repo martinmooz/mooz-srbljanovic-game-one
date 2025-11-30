@@ -12,6 +12,7 @@ export class VictoryManager {
 
     private victoryScreenElement: HTMLDivElement | null = null;
     private isVictoryAchieved: boolean = false;
+    private isGameOver: boolean = false;
 
     constructor() {
         this.createVictoryScreen();
@@ -82,7 +83,7 @@ export class VictoryManager {
         totalDeliveries: number;
         gameDays: number;
     }): boolean {
-        if (this.isVictoryAchieved) return false;
+        if (this.isVictoryAchieved || this.isGameOver) return false;
 
         const revenueWin = this.victoryConditions.targetRevenue
             ? stats.totalRevenue >= this.victoryConditions.targetRevenue
@@ -121,11 +122,56 @@ export class VictoryManager {
         this.victoryScreenElement.style.display = 'flex';
     }
 
+    public showGameOverScreen(stats: {
+        totalRevenue: number;
+        totalDeliveries: number;
+        gameDays: number;
+    }): void {
+        if (!this.victoryScreenElement || this.isVictoryAchieved || this.isGameOver) return;
+
+        this.isGameOver = true;
+
+        // Reuse victory screen but change content/style
+        const title = this.victoryScreenElement.querySelector('#victory-title') as HTMLElement;
+        const subtitle = this.victoryScreenElement.querySelector('#victory-subtitle') as HTMLElement;
+        const bg = this.victoryScreenElement;
+
+        if (title) {
+            title.textContent = '💀 Game Over';
+            title.style.color = '#FF6B6B';
+        }
+        if (subtitle) {
+            subtitle.textContent = 'Your railway empire has gone bankrupt!';
+        }
+
+        bg.style.background = 'linear-gradient(135deg, rgba(60, 0, 0, 0.95) 0%, rgba(30, 0, 0, 0.95) 100%)';
+
+        // Update stats
+        document.getElementById('final-revenue')!.textContent = `$${Math.floor(stats.totalRevenue)}`;
+        document.getElementById('final-deliveries')!.textContent = stats.totalDeliveries.toString();
+        document.getElementById('final-time')!.textContent = `${Math.floor(stats.gameDays)} days`;
+
+        // Hide irrelevant stats or keep them? Keep them.
+
+        this.victoryScreenElement.style.display = 'flex';
+    }
+
     public hide(): void {
         if (this.victoryScreenElement) {
             this.victoryScreenElement.style.display = 'none';
         }
         this.isVictoryAchieved = false;
+        this.isGameOver = false;
+
+        // Reset style
+        if (this.victoryScreenElement) {
+            this.victoryScreenElement.style.background = 'linear-gradient(135deg, rgba(30, 60, 114, 0.95) 0%, rgba(42, 82, 152, 0.95) 100%)';
+            const title = this.victoryScreenElement.querySelector('#victory-title') as HTMLElement;
+            if (title) {
+                title.textContent = '🏆 Victory!';
+                title.style.color = '#FFD700';
+            }
+        }
     }
 
     public setupEventListeners(callbacks: {

@@ -118,6 +118,11 @@ export class EventManager {
         return this.activeEvent?.modifiers.revenue || 1.0;
     }
 
+    public restoreEvent(event: GameEvent | null): void {
+        this.activeEvent = event;
+        this.updateUI();
+    }
+
     public updateUI(): void {
         const banner = document.getElementById('event-banner');
         const icon = document.getElementById('event-icon');

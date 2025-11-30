@@ -3,6 +3,9 @@ import { EconomyManager } from '../core/EconomyManager';
 import { TimeManager } from '../core/TimeManager';
 import { TrainActor, TrainType } from '../core/TrainActor';
 import { CargoType } from '../core/CargoType';
+import { RouteManager } from '../client/RouteManager';
+import { GoalManager, Goal } from '../client/GoalManager';
+import { EventManager, GameEvent } from '../client/EventManager';
 
 interface SaveData {
     version: number;
@@ -19,7 +22,7 @@ interface SaveData {
         trainType: TrainType;
         cargoType: CargoType;
         startTime: number;
-        // We should also save cargo amount/value if it changes, but for now this is fine
+        assignedRouteId?: string; // NEW
     }[];
     map: {
         width: number;
@@ -45,11 +48,21 @@ interface SaveData {
     };
     achievements: string[]; // IDs of unlocked achievements
     selectedSpawn: { x: number, y: number } | null;
+
+    // NEW SECTIONS
+    routes: {
+        id: string;
+        name: string;
+        color: string;
+        stops: { x: number, y: number }[];
+    }[];
+    goal: Goal | null;
+    event: GameEvent | null;
 }
 
 export class SaveManager {
     private static SAVE_KEY = 'railsim_save';
-    private static VERSION = 2; // Bump version
+    private static VERSION = 3; // Bump version
 
     public static save(
         economy: EconomyManager,
@@ -59,7 +72,10 @@ export class SaveManager {
         progression: any, // ProgressionManager
         statistics: any, // StatisticsManager
         achievements: any, // AchievementManager
-        selectedSpawn: { x: number, y: number } | null
+        selectedSpawn: { x: number, y: number } | null,
+        routeManager: RouteManager, // NEW
+        goalManager: GoalManager,   // NEW
+        eventManager: EventManager  // NEW
     ): void {
         const saveData: SaveData = {
             version: this.VERSION,
@@ -75,7 +91,8 @@ export class SaveManager {
                 y: t.y,
                 trainType: t.trainType,
                 cargoType: t.cargoType,
-                startTime: t.startTime
+                startTime: t.startTime,
+                assignedRouteId: t.assignedRoute?.id // Save route ID
             })),
             map: {
                 width: map.getWidth(),
@@ -89,12 +106,22 @@ export class SaveManager {
             },
             statistics: statistics.getStats(),
             achievements: achievements.getUnlockedAchievements(),
-            selectedSpawn
+            selectedSpawn,
+
+            // NEW DATA
+            routes: routeManager.getAllRoutes().map(r => ({
+                id: r.id,
+                name: r.name,
+                color: r.color,
+                stops: r.stops
+            })),
+            goal: goalManager.getCurrentGoal(),
+            event: eventManager.getActiveEvent()
         };
 
         try {
             localStorage.setItem(this.SAVE_KEY, JSON.stringify(saveData));
-            // console.log('Game saved successfully'); // Spammy
+            // console.log('Game saved successfully');
         } catch (e) {
             console.error('Failed to save game:', e);
         }

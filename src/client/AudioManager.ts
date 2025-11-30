@@ -140,6 +140,14 @@ export class AudioManager {
                 osc.start(t);
                 osc.stop(t + 0.3);
                 break;
+
+            case 'gameOver':
+                // Descending tones
+                this.playNote(392.00, t, 0.3, 'sawtooth'); // G4
+                this.playNote(369.99, t + 0.3, 0.3, 'sawtooth'); // F#4
+                this.playNote(349.23, t + 0.6, 0.3, 'sawtooth'); // F4
+                this.playNote(329.63, t + 0.9, 1.0, 'sawtooth'); // E4
+                break;
         }
     }
 

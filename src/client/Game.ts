@@ -73,6 +73,13 @@ export class Game {
     // Route Editing State
     private editingRouteId: string | null = null;
 
+    // GUI Interaction State
+    private isPlacingStation: boolean = false;
+    private isSettingSpawn: boolean = false;
+    private isPanning: boolean = false;
+    private lastMouseX: number = 0;
+    private lastMouseY: number = 0;
+
     constructor() {
         const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
         this.renderer = new Renderer(canvas);
@@ -150,7 +157,10 @@ export class Game {
             this.progressionManager,
             this.statisticsManager,
             this.achievementManager,
-            this.selectedSpawnStation
+            this.selectedSpawnStation,
+            this.routeManager, // NEW
+            this.goalManager,   // NEW
+            this.eventManager   // NEW
         );
     }
 
@@ -197,21 +207,44 @@ export class Game {
         if (data && data.trains) {
             for (const t of data.trains) {
                 const train = new TrainActor(t.x, t.y, t.trainType, t.startTime, t.cargoType);
+                if (t.assignedRouteId) {
+                    const route = this.routeManager.getRoute(t.assignedRouteId);
+                    if (route) {
+                        train.assignedRoute = route;
+                    }
+                }
                 this.trains.push(train);
             }
         }
 
-        // Restore Progression
-        if (data && data.progression) {
-            this.progressionManager.loadData(data.progression);
+        // Restore Goals (NEW)
+        if (data && data.goal) {
+            // goalManager is initialized in constructor, we just need to set the state
+            // But GoalManager doesn't have a public setter for currentGoal.
+            // We might need to add one or just hack it for now.
+            // Let's assume we add a restore method to GoalManager.
+            this.goalManager.restoreGoal(data.goal);
         }
 
-        // Restore Stats
+        // Restore Events (NEW)
+        if (data && data.event) {
+            this.eventManager.restoreEvent(data.event);
+        }
+
+        // Restore Progression
+        this.progressionManager = new ProgressionManager();
+        if (data && data.progression) {
+            this.progressionManager.loadFromSave(data.progression);
+        }
+
+        // Restore Statistics
+        this.statisticsManager = new StatisticsManager();
         if (data && data.statistics) {
-            this.statisticsManager.loadData(data.statistics);
+            this.statisticsManager.loadStats(data.statistics);
         }
 
         // Restore Achievements
+        this.achievementManager = new AchievementManager();
         if (data && data.achievements) {
             this.achievementManager.loadData(data.achievements);
         }
@@ -288,6 +321,41 @@ export class Game {
             if (btn) {
                 btn.textContent = this.audioManager.isSoundEnabled() ? '🔊' : '🔇';
             }
+        });
+
+        // GUI Buttons
+        document.getElementById('btn-place-station')?.addEventListener('click', () => {
+            this.isPlacingStation = !this.isPlacingStation;
+            this.isSettingSpawn = false;
+            this.updateCursor();
+            this.notificationManager.addNotification(this.isPlacingStation ? 'Click to Place Station' : 'Cancelled', 10, 10, '#FFFFFF');
+        });
+
+        document.getElementById('btn-set-spawn')?.addEventListener('click', () => {
+            this.isSettingSpawn = !this.isSettingSpawn;
+            this.isPlacingStation = false;
+            this.updateCursor();
+            this.notificationManager.addNotification(this.isSettingSpawn ? 'Click Station to Set Spawn' : 'Cancelled', 10, 10, '#FFFFFF');
+        });
+
+        document.getElementById('btn-undo')?.addEventListener('click', () => {
+            this.undoLastBuild();
+        });
+
+        document.getElementById('btn-close-help')?.addEventListener('click', () => {
+            const helpOverlay = document.getElementById('help-overlay');
+            if (helpOverlay) helpOverlay.style.display = 'none';
+        });
+
+        // Camera Controls
+        const moveCam = (dx: number, dy: number) => this.camera.move(dx, dy);
+        document.getElementById('btn-cam-up')?.addEventListener('click', () => moveCam(0, -50));
+        document.getElementById('btn-cam-down')?.addEventListener('click', () => moveCam(0, 50));
+        document.getElementById('btn-cam-left')?.addEventListener('click', () => moveCam(-50, 0));
+        document.getElementById('btn-cam-right')?.addEventListener('click', () => moveCam(50, 0));
+        document.getElementById('btn-cam-reset')?.addEventListener('click', () => {
+            this.camera.x = -100;
+            this.camera.y = -100;
         });
     }
 
@@ -386,7 +454,50 @@ export class Game {
                 return;
             }
 
-            if (e.button === 0) { // Left Click: Start Drag
+            if (e.button === 2) { // Right Click: Start Pan
+                this.isPanning = true;
+                this.lastMouseX = e.clientX;
+                this.lastMouseY = e.clientY;
+                canvas.style.cursor = 'grabbing';
+                return;
+            }
+
+            if (e.button === 0) { // Left Click: Action
+                // Handle GUI Modes
+                if (this.isPlacingStation) {
+                    if (this.map.placeStation(tile.x, tile.y, this.economy, this.progressionManager.getLevel())) {
+                        this.audioManager.playSound('build');
+                        this.particleManager.emit(ParticleType.DUST, tile.x + 0.5, tile.y + 0.5, 12);
+
+                        // Auto-select if none selected
+                        if (!this.selectedSpawnStation) {
+                            this.selectedSpawnStation = { x: tile.x, y: tile.y };
+                            this.notificationManager.addNotification('Spawn Point Set!', tile.x, tile.y, '#00FF00');
+                        }
+                        this.updateUI();
+                        this.isPlacingStation = false; // Reset after placement
+                        this.updateCursor();
+                    } else {
+                        this.audioManager.playSound('error');
+                        this.notificationManager.addNotification('Cannot Build Here!', tile.x, tile.y, '#FF0000');
+                    }
+                    return;
+                }
+
+                if (this.isSettingSpawn) {
+                    const tileData = this.map.getTile(tile.x, tile.y);
+                    if (tileData && tileData.trackType === 'station') {
+                        this.selectedSpawnStation = { x: tile.x, y: tile.y };
+                        this.notificationManager.addNotification('Spawn Point Set!', tile.x, tile.y, '#00FF00');
+                        this.updateUI();
+                        this.isSettingSpawn = false; // Reset after setting
+                        this.updateCursor();
+                    } else {
+                        this.notificationManager.addNotification('Not a Station!', tile.x, tile.y, '#FF0000');
+                    }
+                    return;
+                }
+
                 // Check if clicking on a train
                 let clickedTrain = false;
                 for (const train of this.trains) {
@@ -442,6 +553,16 @@ export class Game {
 
             this.currentMouseTile = { x: tile.x, y: tile.y };
 
+            if (this.isPanning) {
+                const dx = e.clientX - this.lastMouseX;
+                const dy = e.clientY - this.lastMouseY;
+                this.camera.x -= dx / this.camera.zoom;
+                this.camera.y -= dy / this.camera.zoom;
+                this.lastMouseX = e.clientX;
+                this.lastMouseY = e.clientY;
+                return;
+            }
+
             if (this.isDragging) {
                 this.dragEndTile = { x: tile.x, y: tile.y };
                 this.updateBuildCostPreview();
@@ -492,6 +613,12 @@ export class Game {
         });
 
         window.addEventListener('mouseup', (e) => {
+            if (this.isPanning) {
+                this.isPanning = false;
+                canvas.style.cursor = 'default';
+                this.updateCursor();
+                return;
+            }
             // Route Editing Click
             if (this.editingRouteId) {
                 const rect = canvas.getBoundingClientRect();
@@ -913,6 +1040,27 @@ export class Game {
         }
     }
 
+    private checkGameOver(): void {
+        // Game Over Condition:
+        // 1. No trains
+        // 2. Not enough money to build even a single track ($20)
+        // 3. Not enough money to buy a train (checked implicitly by low balance, but let's be strict about "stuck" state)
+
+        if (this.trains.length === 0 && this.economy.getBalance() < 20) {
+            const currentStats = this.statisticsManager.getStats();
+            this.victoryManager.showGameOverScreen({
+                totalRevenue: currentStats.totalRevenue,
+                totalDeliveries: currentStats.totalDeliveries,
+                gameDays: this.timeManager.getGameTimeDays()
+            });
+
+            if (!this.isPaused) {
+                this.audioManager.playSound('gameOver');
+                this.isPaused = true;
+            }
+        }
+    }
+
     private loop() {
         const now = performance.now();
         let deltaTime = (now - this.lastTime) / 1000; // Seconds
@@ -974,6 +1122,29 @@ export class Game {
             this.revenueAtStartOfDay = currentTotalRevenue;
 
             console.log(`📅 Day ${currentDay} started. Yesterday's revenue: $${dailyRevenue}`);
+
+            // Periodic Victory Check (Daily)
+            const currentStats = this.statisticsManager.getStats();
+            if (this.victoryManager.checkVictory({
+                totalRevenue: currentStats.totalRevenue,
+                totalDeliveries: currentStats.totalDeliveries,
+                gameDays: this.timeManager.getGameTimeDays()
+            })) {
+                this.victoryManager.showVictoryScreen({
+                    totalRevenue: currentStats.totalRevenue,
+                    totalDeliveries: currentStats.totalDeliveries,
+                    gameDays: this.timeManager.getGameTimeDays(),
+                    trainCount: this.trains.length,
+                    achievementCount: this.achievementManager.getUnlockedCount(),
+                    highestRevenue: currentStats.highestRevenue
+                });
+                this.isPaused = true;
+            }
+        }
+
+        // Check Game Over periodically (every 60 frames ~ 1 sec)
+        if (Math.random() < 0.016) {
+            this.checkGameOver();
         }
 
         // Update Market Prices
@@ -1440,6 +1611,18 @@ export class Game {
                 }
                 routeSelect.appendChild(option);
             });
+        }
+    }
+    private updateCursor(): void {
+        const canvas = document.getElementById('gameCanvas');
+        if (!canvas) return;
+
+        if (this.isPlacingStation) {
+            canvas.style.cursor = 'crosshair';
+        } else if (this.isSettingSpawn) {
+            canvas.style.cursor = 'help';
+        } else {
+            canvas.style.cursor = 'default';
         }
     }
 }

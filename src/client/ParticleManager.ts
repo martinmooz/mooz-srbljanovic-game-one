@@ -48,11 +48,12 @@ export class ParticleManager {
 
         switch (type) {
             case ParticleType.SMOKE:
-                particle.vx = (Math.random() - 0.5) * 10;
-                particle.vy = -20 - Math.random() * 20; // Rise upward
-                particle.maxLife = 1.5;
-                particle.size = 6 + Math.random() * 4;
-                particle.color = `rgba(100, 100, 100, ${0.5 + Math.random() * 0.3})`;
+                particle.vx = (Math.random() - 0.5) * 15;
+                particle.vy = -20 - Math.random() * 30; // Rise upward faster
+                particle.maxLife = 2.0;
+                particle.size = 8 + Math.random() * 6;
+                // Start dark, fade out
+                particle.color = `rgba(80, 80, 80, ${0.6 + Math.random() * 0.2})`;
                 break;
 
             case ParticleType.SPARKLE:
@@ -93,21 +94,21 @@ export class ParticleManager {
                 break;
 
             case ParticleType.SPARKS:
-                const sparkAngle = Math.random() * Math.PI; // Upward arc
-                const sparkSpeed = 20 + Math.random() * 30;
+                const sparkAngle = -Math.PI / 2 + (Math.random() - 0.5) * 2; // Upward cone
+                const sparkSpeed = 40 + Math.random() * 40;
                 particle.vx = Math.cos(sparkAngle) * sparkSpeed;
-                particle.vy = -Math.abs(Math.sin(sparkAngle) * sparkSpeed);
-                particle.maxLife = 0.4;
+                particle.vy = Math.sin(sparkAngle) * sparkSpeed;
+                particle.maxLife = 0.5;
                 particle.size = 2 + Math.random() * 2;
                 particle.color = '#FFD700'; // Gold
                 break;
 
             case ParticleType.MONEY:
                 // Floating dollar signs
-                particle.vx = (Math.random() - 0.5) * 10;
-                particle.vy = -30 - Math.random() * 20; // Float upward
-                particle.maxLife = 1.5;
-                particle.size = 12 + Math.random() * 4; // Text size
+                particle.vx = (Math.random() - 0.5) * 20;
+                particle.vy = -40 - Math.random() * 20; // Float upward faster
+                particle.maxLife = 2.0;
+                particle.size = 14 + Math.random() * 6; // Text size
                 particle.color = '#51CF66'; // Green money color
                 particle.text = '$'; // Dollar sign
                 break;
