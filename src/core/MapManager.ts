@@ -97,6 +97,14 @@ export class MapManager {
         }
     }
 
+    public restoreStationData(x: number, y: number, storage: any, lastProduction: number): void {
+        const tile = this.getTile(x, y);
+        if (tile && tile.trackType === 'station') {
+            tile.storage = storage;
+            tile.lastProduction = lastProduction;
+        }
+    }
+
     private initializeMap(): void {
         // 1. Fill with Grass
         for (let y = 0; y < this.height; y++) {

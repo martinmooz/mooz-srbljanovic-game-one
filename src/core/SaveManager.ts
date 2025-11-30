@@ -34,6 +34,8 @@ interface SaveData {
             stationType?: string;
             terrainType?: string;
             bitmaskValue: number;
+            storage?: Record<string, number>;
+            lastProduction?: number;
         }[];
     };
     progression: {
@@ -160,7 +162,9 @@ export class SaveManager {
                             trackType: tile.trackType,
                             stationType: tile.stationType,
                             terrainType: tile.terrainType,
-                            bitmaskValue: tile.bitmaskValue
+                            bitmaskValue: tile.bitmaskValue,
+                            storage: tile.storage, // Save storage
+                            lastProduction: tile.lastProduction // Save production timer
                         });
                     }
                 }

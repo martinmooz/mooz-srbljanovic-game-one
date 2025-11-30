@@ -226,6 +226,9 @@ export class Game {
 
                     if (tile.trackType === 'station' && tile.stationType) {
                         this.map.restoreStation(tile.x, tile.y, tile.stationType);
+                        if (tileData.storage || tileData.lastProduction) {
+                            this.map.restoreStationData(tile.x, tile.y, tileData.storage, tileData.lastProduction || 0);
+                        }
                     }
                 }
             }
@@ -1413,7 +1416,7 @@ export class Game {
                                 // Better: If we unloaded, we definitely switch.
                                 // If we are just passing through and it matches our current cargo, maybe top up? (Not implemented)
 
-                                if (unloaded || isAtSpawnStation) {
+                                if ((unloaded || isAtSpawnStation) && tile.storage) {
                                     tile.storage[cargo] -= 5;
                                     train.cargoType = cargo as CargoType;
                                     train.startX = train.x; // Reset trip start
