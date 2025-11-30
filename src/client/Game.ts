@@ -1467,7 +1467,7 @@ export class Game {
                 // Despawn
                 this.trains.splice(i, 1);
             }
-        }
+
 
             // Industry Smoke
             // Iterate over map to find industries and emit smoke
@@ -1475,298 +1475,298 @@ export class Game {
             // For MVP, just iterate all stations.
             // 5% chance per frame per industry
             if (Math.random() < 0.05) {
-            for (let y = 0; y < this.map.getHeight(); y++) {
-                for (let x = 0; x < this.map.getWidth(); x++) {
-                    const tile = this.map.getTile(x, y);
-                    if (tile && tile.trackType === 'station') {
-                        if (tile.stationType === 'STEEL_MILL' || tile.stationType === 'COAL_MINE' || tile.stationType === 'TOOL_FACTORY') {
-                            // Emit smoke
-                            this.particleManager.emit(ParticleType.SMOKE, x + 0.5, y + 0.2, 1);
+                for (let y = 0; y < this.map.getHeight(); y++) {
+                    for (let x = 0; x < this.map.getWidth(); x++) {
+                        const tile = this.map.getTile(x, y);
+                        if (tile && tile.trackType === 'station') {
+                            if (tile.stationType === 'STEEL_MILL' || tile.stationType === 'COAL_MINE' || tile.stationType === 'TOOL_FACTORY') {
+                                // Emit smoke
+                                this.particleManager.emit(ParticleType.SMOKE, x + 0.5, y + 0.2, 1);
+                            }
                         }
                     }
                 }
             }
+
+            // Render
+            this.renderer.render(
+                this.map,
+                this.trains,
+                this.notificationManager,
+                this.particleManager,
+                this.camera,
+                this.selectedSpawnStation,
+                this.timeManager.getGameTimeDays(),
+                this.eventManager,
+                this.isDragging ? null : this.currentMouseTile,
+                this.editingRouteId ? this.routeManager.getRoute(this.editingRouteId) : null // Pass active route
+            );    // Render Ghost Tracks if dragging
+            if (this.isDragging && this.dragStartTile && this.dragEndTile) {
+                const path = this.map.getTrackPath(this.dragStartTile, this.dragEndTile);
+                this.renderer.drawGhostTracks(path);
+            }
+
+        } catch (e) {
+            console.error("Game Loop Error:", e);
+            this.isPaused = true;
+            this.notificationManager.addNotification("Game Error! Check Console", 10, 10, '#FF0000');
         }
 
-        // Render
-        this.renderer.render(
-            this.map,
-            this.trains,
-            this.notificationManager,
-            this.particleManager,
-            this.camera,
-            this.selectedSpawnStation,
-            this.timeManager.getGameTimeDays(),
-            this.eventManager,
-            this.isDragging ? null : this.currentMouseTile,
-            this.editingRouteId ? this.routeManager.getRoute(this.editingRouteId) : null // Pass active route
-        );    // Render Ghost Tracks if dragging
-        if (this.isDragging && this.dragStartTile && this.dragEndTile) {
-            const path = this.map.getTrackPath(this.dragStartTile, this.dragEndTile);
-            this.renderer.drawGhostTracks(path);
-        }
-
-    } catch(e) {
-        console.error("Game Loop Error:", e);
-        this.isPaused = true;
-        this.notificationManager.addNotification("Game Error! Check Console", 10, 10, '#FF0000');
-    }
-
-    requestAnimationFrame(() => this.loop());
+        requestAnimationFrame(() => this.loop());
     }
 
     private setupRouteUI(): void {
-    const panel = document.getElementById('route-panel');
-    const btnToggle = document.getElementById('btn-toggle-routes');
-    const btnClose = document.getElementById('btn-close-routes');
-    const btnNew = document.getElementById('btn-new-route');
-    const btnFinish = document.getElementById('btn-finish-route');
-    const btnDelete = document.getElementById('btn-delete-route');
+        const panel = document.getElementById('route-panel');
+        const btnToggle = document.getElementById('btn-toggle-routes');
+        const btnClose = document.getElementById('btn-close-routes');
+        const btnNew = document.getElementById('btn-new-route');
+        const btnFinish = document.getElementById('btn-finish-route');
+        const btnDelete = document.getElementById('btn-delete-route');
 
-    if(btnToggle && panel) {
-    btnToggle.addEventListener('click', () => {
-        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-        this.updateRouteListUI();
-    });
-}
-
-if (btnClose && panel) {
-    btnClose.addEventListener('click', () => {
-        panel.style.display = 'none';
-        this.editingRouteId = null;
-        this.updateRouteEditorUI();
-    });
-}
-
-if (btnNew) {
-    btnNew.addEventListener('click', () => {
-        const route = this.routeManager.createRoute(`Route ${this.routeManager.getAllRoutes().length + 1}`, '#FF00FF');
-        this.editingRouteId = route.id;
-        this.updateRouteListUI();
-        this.updateRouteEditorUI();
-    });
-}
-
-if (btnFinish) {
-    btnFinish.addEventListener('click', () => {
-        this.editingRouteId = null;
-        this.updateRouteEditorUI();
-        this.updateRouteListUI();
-    });
-}
-
-if (btnDelete) {
-    btnDelete.addEventListener('click', () => {
-        if (this.editingRouteId) {
-            this.routeManager.deleteRoute(this.editingRouteId);
-            this.editingRouteId = null;
-            this.updateRouteEditorUI();
-            this.updateRouteListUI();
+        if (btnToggle && panel) {
+            btnToggle.addEventListener('click', () => {
+                panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+                this.updateRouteListUI();
+            });
         }
-    });
-}
+
+        if (btnClose && panel) {
+            btnClose.addEventListener('click', () => {
+                panel.style.display = 'none';
+                this.editingRouteId = null;
+                this.updateRouteEditorUI();
+            });
+        }
+
+        if (btnNew) {
+            btnNew.addEventListener('click', () => {
+                const route = this.routeManager.createRoute(`Route ${this.routeManager.getAllRoutes().length + 1}`, '#FF00FF');
+                this.editingRouteId = route.id;
+                this.updateRouteListUI();
+                this.updateRouteEditorUI();
+            });
+        }
+
+        if (btnFinish) {
+            btnFinish.addEventListener('click', () => {
+                this.editingRouteId = null;
+                this.updateRouteEditorUI();
+                this.updateRouteListUI();
+            });
+        }
+
+        if (btnDelete) {
+            btnDelete.addEventListener('click', () => {
+                if (this.editingRouteId) {
+                    this.routeManager.deleteRoute(this.editingRouteId);
+                    this.editingRouteId = null;
+                    this.updateRouteEditorUI();
+                    this.updateRouteListUI();
+                }
+            });
+        }
     }
 
     private updateRouteListUI(): void {
-    const list = document.getElementById('route-list');
-    if(!list) return;
+        const list = document.getElementById('route-list');
+        if (!list) return;
 
-    list.innerHTML = '';
-    const routes = this.routeManager.getAllRoutes();
+        list.innerHTML = '';
+        const routes = this.routeManager.getAllRoutes();
 
-    if(routes.length === 0) {
-    list.innerHTML = '<div style="text-align: center; color: #888; font-size: 12px; padding: 10px;">No routes created</div>';
-    return;
-}
+        if (routes.length === 0) {
+            list.innerHTML = '<div style="text-align: center; color: #888; font-size: 12px; padding: 10px;">No routes created</div>';
+            return;
+        }
 
-routes.forEach(route => {
-    const div = document.createElement('div');
-    div.style.padding = '8px';
-    div.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
-    div.style.cursor = 'pointer';
-    div.style.backgroundColor = this.editingRouteId === route.id ? 'rgba(255,255,255,0.1)' : 'transparent';
+        routes.forEach(route => {
+            const div = document.createElement('div');
+            div.style.padding = '8px';
+            div.style.borderBottom = '1px solid rgba(255,255,255,0.1)';
+            div.style.cursor = 'pointer';
+            div.style.backgroundColor = this.editingRouteId === route.id ? 'rgba(255,255,255,0.1)' : 'transparent';
 
-    div.innerHTML = `
+            div.innerHTML = `
                 <div style="font-weight: bold; color: ${route.color};">${route.name}</div>
                 <div style="font-size: 10px; color: #aaa;">${route.stops.length} stops</div>
             `;
 
-    div.addEventListener('click', () => {
-        this.editingRouteId = route.id;
-        this.updateRouteListUI();
-        this.updateRouteEditorUI();
-    });
+            div.addEventListener('click', () => {
+                this.editingRouteId = route.id;
+                this.updateRouteListUI();
+                this.updateRouteEditorUI();
+            });
 
-    list.appendChild(div);
-});
+            list.appendChild(div);
+        });
     }
 
     private updateRouteEditorUI(): void {
-    const editor = document.getElementById('active-route-editor');
-    const btnNew = document.getElementById('btn-new-route');
+        const editor = document.getElementById('active-route-editor');
+        const btnNew = document.getElementById('btn-new-route');
 
-    if(!editor || !btnNew) return;
+        if (!editor || !btnNew) return;
 
-if (this.editingRouteId) {
-    editor.style.display = 'block';
-    btnNew.style.display = 'none';
+        if (this.editingRouteId) {
+            editor.style.display = 'block';
+            btnNew.style.display = 'none';
 
-    const route = this.routeManager.getRoute(this.editingRouteId);
-    if (route) {
-        const nameEl = document.getElementById('editing-route-name');
-        if (nameEl) nameEl.innerText = route.name;
+            const route = this.routeManager.getRoute(this.editingRouteId);
+            if (route) {
+                const nameEl = document.getElementById('editing-route-name');
+                if (nameEl) nameEl.innerText = route.name;
 
-        const stopsList = document.getElementById('route-stops-list');
-        if (stopsList) {
-            stopsList.innerHTML = '';
-            route.stops.forEach((stop, index) => {
-                const li = document.createElement('li');
-                li.style.padding = '4px 0';
-                li.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-                li.innerHTML = `
+                const stopsList = document.getElementById('route-stops-list');
+                if (stopsList) {
+                    stopsList.innerHTML = '';
+                    route.stops.forEach((stop, index) => {
+                        const li = document.createElement('li');
+                        li.style.padding = '4px 0';
+                        li.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
+                        li.innerHTML = `
                             <span style="color: #aaa;">${index + 1}.</span> 
                             Stop at (${stop.x}, ${stop.y})
                             <button class="delete-stop-btn" style="float: right; background: none; border: none; color: #FF6B6B; cursor: pointer;">✕</button>
                         `;
 
-                // Delete stop button
-                const btn = li.querySelector('.delete-stop-btn');
-                if (btn) {
-                    btn.addEventListener('click', (e) => {
-                        e.stopPropagation();
-                        this.routeManager.removeStop(route.id, index);
-                        this.updateRouteEditorUI();
-                        this.updateRouteListUI();
+                        // Delete stop button
+                        const btn = li.querySelector('.delete-stop-btn');
+                        if (btn) {
+                            btn.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                this.routeManager.removeStop(route.id, index);
+                                this.updateRouteEditorUI();
+                                this.updateRouteListUI();
+                            });
+                        }
+
+                        stopsList.appendChild(li);
                     });
                 }
-
-                stopsList.appendChild(li);
-            });
+            }
+        } else {
+            editor.style.display = 'none';
+            btnNew.style.display = 'block';
         }
-    }
-} else {
-    editor.style.display = 'none';
-    btnNew.style.display = 'block';
-}
     }
 
     private setupTrainDetailsUI(): void {
-    const panel = document.getElementById('train-details-panel');
-    const btnClose = document.getElementById('btn-close-train-details');
-    const routeSelect = document.getElementById('train-route-select') as HTMLSelectElement;
-    const btnSell = document.getElementById('btn-sell-train');
+        const panel = document.getElementById('train-details-panel');
+        const btnClose = document.getElementById('btn-close-train-details');
+        const routeSelect = document.getElementById('train-route-select') as HTMLSelectElement;
+        const btnSell = document.getElementById('btn-sell-train');
 
-    if(btnClose && panel) {
-    btnClose.addEventListener('click', () => {
-        panel.style.display = 'none';
-        this.selectedTrain = null;
-    });
-}
+        if (btnClose && panel) {
+            btnClose.addEventListener('click', () => {
+                panel.style.display = 'none';
+                this.selectedTrain = null;
+            });
+        }
 
-if (routeSelect) {
-    routeSelect.addEventListener('change', (e) => {
-        if (this.selectedTrain) {
-            const routeId = (e.target as HTMLSelectElement).value;
-            if (routeId) {
-                const route = this.routeManager.getRoute(routeId);
-                if (route) {
-                    this.selectedTrain.assignedRoute = route;
-                    this.notificationManager.addNotification(`Assigned to ${route.name}`, this.selectedTrain.x, this.selectedTrain.y - 1, route.color);
+        if (routeSelect) {
+            routeSelect.addEventListener('change', (e) => {
+                if (this.selectedTrain) {
+                    const routeId = (e.target as HTMLSelectElement).value;
+                    if (routeId) {
+                        const route = this.routeManager.getRoute(routeId);
+                        if (route) {
+                            this.selectedTrain.assignedRoute = route;
+                            this.notificationManager.addNotification(`Assigned to ${route.name}`, this.selectedTrain.x, this.selectedTrain.y - 1, route.color);
+                        }
+                    } else {
+                        this.selectedTrain.assignedRoute = null;
+                        this.notificationManager.addNotification(`Route Cleared`, this.selectedTrain.x, this.selectedTrain.y - 1, '#FFFFFF');
+                    }
                 }
-            } else {
-                this.selectedTrain.assignedRoute = null;
-                this.notificationManager.addNotification(`Route Cleared`, this.selectedTrain.x, this.selectedTrain.y - 1, '#FFFFFF');
-            }
+            });
         }
-    });
-}
 
-if (btnSell) {
-    btnSell.addEventListener('click', () => {
-        if (this.selectedTrain) {
-            const value = Math.floor(TrainTypeManager.getTrainInfo(this.selectedTrain.trainType).cost * 0.75);
-            this.economy.add(value);
-            this.audioManager.playSound('sell');
-            this.particleManager.emit(ParticleType.SPARKLE, this.selectedTrain.x, this.selectedTrain.y, 10);
+        if (btnSell) {
+            btnSell.addEventListener('click', () => {
+                if (this.selectedTrain) {
+                    const value = Math.floor(TrainTypeManager.getTrainInfo(this.selectedTrain.trainType).cost * 0.75);
+                    this.economy.add(value);
+                    this.audioManager.playSound('sell');
+                    this.particleManager.emit(ParticleType.SPARKLE, this.selectedTrain.x, this.selectedTrain.y, 10);
 
-            // Remove train
-            const index = this.trains.indexOf(this.selectedTrain);
-            if (index > -1) {
-                this.trains.splice(index, 1);
-            }
+                    // Remove train
+                    const index = this.trains.indexOf(this.selectedTrain);
+                    if (index > -1) {
+                        this.trains.splice(index, 1);
+                    }
 
-            this.selectedTrain = null;
-            if (panel) panel.style.display = 'none';
-            this.updateUI();
+                    this.selectedTrain = null;
+                    if (panel) panel.style.display = 'none';
+                    this.updateUI();
+                }
+            });
         }
-    });
-}
     }
 
     private updateTrainDetailsUI(): void {
-    const panel = document.getElementById('train-details-panel');
-    if(!panel || !this.selectedTrain) {
-    if (panel) panel.style.display = 'none';
-    return;
-}
-
-panel.style.display = 'block';
-
-const typeEl = document.getElementById('train-details-type');
-const cargoEl = document.getElementById('train-details-cargo');
-const speedEl = document.getElementById('train-details-speed');
-const sellValEl = document.getElementById('train-sell-value');
-const routeSelect = document.getElementById('train-route-select') as HTMLSelectElement;
-
-const info = TrainTypeManager.getTrainInfo(this.selectedTrain.trainType);
-const cargoInfo = CargoTypeManager.getCargoInfo(this.selectedTrain.cargoType);
-
-if (typeEl) typeEl.innerText = info.name;
-if (cargoEl) cargoEl.innerText = cargoInfo.name;
-if (speedEl) speedEl.innerText = info.speed.toFixed(1);
-if (sellValEl) sellValEl.innerText = Math.floor(info.cost * 0.75).toString();
-
-// Update Route Select
-if (routeSelect) {
-    routeSelect.innerHTML = '<option value="">None</option>';
-    const routes = this.routeManager.getAllRoutes();
-    routes.forEach(route => {
-        const option = document.createElement('option');
-        option.value = route.id;
-        option.innerText = route.name;
-        option.style.color = route.color;
-        if (this.selectedTrain?.assignedRoute?.id === route.id) {
-            option.selected = true;
+        const panel = document.getElementById('train-details-panel');
+        if (!panel || !this.selectedTrain) {
+            if (panel) panel.style.display = 'none';
+            return;
         }
-        routeSelect.appendChild(option);
-    });
-}
+
+        panel.style.display = 'block';
+
+        const typeEl = document.getElementById('train-details-type');
+        const cargoEl = document.getElementById('train-details-cargo');
+        const speedEl = document.getElementById('train-details-speed');
+        const sellValEl = document.getElementById('train-sell-value');
+        const routeSelect = document.getElementById('train-route-select') as HTMLSelectElement;
+
+        const info = TrainTypeManager.getTrainInfo(this.selectedTrain.trainType);
+        const cargoInfo = CargoTypeManager.getCargoInfo(this.selectedTrain.cargoType);
+
+        if (typeEl) typeEl.innerText = info.name;
+        if (cargoEl) cargoEl.innerText = cargoInfo.name;
+        if (speedEl) speedEl.innerText = info.speed.toFixed(1);
+        if (sellValEl) sellValEl.innerText = Math.floor(info.cost * 0.75).toString();
+
+        // Update Route Select
+        if (routeSelect) {
+            routeSelect.innerHTML = '<option value="">None</option>';
+            const routes = this.routeManager.getAllRoutes();
+            routes.forEach(route => {
+                const option = document.createElement('option');
+                option.value = route.id;
+                option.innerText = route.name;
+                option.style.color = route.color;
+                if (this.selectedTrain?.assignedRoute?.id === route.id) {
+                    option.selected = true;
+                }
+                routeSelect.appendChild(option);
+            });
+        }
     }
 
     private updateMarketUI(): void {
-    const list = document.getElementById('market-list');
-    if(!list) return;
+        const list = document.getElementById('market-list');
+        if (!list) return;
 
-    list.innerHTML = '';
-    const prices = this.marketManager.getAllPrices();
+        list.innerHTML = '';
+        const prices = this.marketManager.getAllPrices();
 
-    for(const price of prices) {
-        const info = CargoTypeManager.getCargoInfo(price.cargoType);
-        const currentPrice = Math.floor(price.basePrice * price.currentMultiplier);
+        for (const price of prices) {
+            const info = CargoTypeManager.getCargoInfo(price.cargoType);
+            const currentPrice = Math.floor(price.basePrice * price.currentMultiplier);
 
-        let trendIcon = '➖';
-        let trendColor = '#888';
-        if (price.trend > 0) {
-            trendIcon = '📈';
-            trendColor = '#00FF00';
-        } else if (price.trend < 0) {
-            trendIcon = '📉';
-            trendColor = '#FF0000';
-        }
+            let trendIcon = '➖';
+            let trendColor = '#888';
+            if (price.trend > 0) {
+                trendIcon = '📈';
+                trendColor = '#00FF00';
+            } else if (price.trend < 0) {
+                trendIcon = '📉';
+                trendColor = '#FF0000';
+            }
 
-        const row = document.createElement('tr');
-        row.style.borderBottom = '1px solid #333';
-        row.innerHTML = `
+            const row = document.createElement('tr');
+            row.style.borderBottom = '1px solid #333';
+            row.innerHTML = `
                 <td style="padding: 8px; display: flex; align-items: center; gap: 8px;">
                     <div style="width: 12px; height: 12px; background: ${info.color}; border-radius: 50%;"></div>
                     ${info.name}
@@ -1774,46 +1774,46 @@ if (routeSelect) {
                 <td style="padding: 8px; text-align: right; font-family: monospace;">$${currentPrice}</td>
                 <td style="padding: 8px; text-align: center; color: ${trendColor};">${trendIcon}</td>
             `;
-        list.appendChild(row);
+            list.appendChild(row);
+        }
     }
-}
 
     private updateButtonStates(): void {
-    const btnBuild = document.getElementById('btn-build-track');
-    const btnStation = document.getElementById('btn-place-station');
-    const btnSpawn = document.getElementById('btn-set-spawn');
-    const btnDemolish = document.getElementById('btn-demolish');
+        const btnBuild = document.getElementById('btn-build-track');
+        const btnStation = document.getElementById('btn-place-station');
+        const btnSpawn = document.getElementById('btn-set-spawn');
+        const btnDemolish = document.getElementById('btn-demolish');
 
-    if(btnBuild) btnBuild.classList.remove('active');
-    if(btnStation) btnStation.classList.remove('active');
-    if(btnSpawn) btnSpawn.classList.remove('active');
-    if(btnDemolish) btnDemolish.classList.remove('active');
+        if (btnBuild) btnBuild.classList.remove('active');
+        if (btnStation) btnStation.classList.remove('active');
+        if (btnSpawn) btnSpawn.classList.remove('active');
+        if (btnDemolish) btnDemolish.classList.remove('active');
 
-    if(this.isPlacingStation) {
-    btnStation?.classList.add('active');
-} else if (this.isSettingSpawn) {
-    btnSpawn?.classList.add('active');
-} else if (this.isDemolishing) {
-    btnDemolish?.classList.add('active');
-} else {
-    // Default is build track mode
-    btnBuild?.classList.add('active');
-}
+        if (this.isPlacingStation) {
+            btnStation?.classList.add('active');
+        } else if (this.isSettingSpawn) {
+            btnSpawn?.classList.add('active');
+        } else if (this.isDemolishing) {
+            btnDemolish?.classList.add('active');
+        } else {
+            // Default is build track mode
+            btnBuild?.classList.add('active');
+        }
     }
 
     private updateCursor(): void {
-    const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
-    if(!canvas) return;
+        const canvas = document.getElementById('gameCanvas') as HTMLCanvasElement;
+        if (!canvas) return;
 
-    if(this.isPlacingStation) {
-    canvas.style.cursor = 'crosshair';
-} else if (this.isSettingSpawn) {
-    canvas.style.cursor = 'pointer';
-} else if (this.isDemolishing) {
-    canvas.style.cursor = 'not-allowed';
-} else {
-    canvas.style.cursor = 'default';
-}
+        if (this.isPlacingStation) {
+            canvas.style.cursor = 'crosshair';
+        } else if (this.isSettingSpawn) {
+            canvas.style.cursor = 'pointer';
+        } else if (this.isDemolishing) {
+            canvas.style.cursor = 'not-allowed';
+        } else {
+            canvas.style.cursor = 'default';
+        }
     }
 }
 
